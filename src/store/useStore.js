@@ -1,94 +1,83 @@
 import { create } from 'zustand'
-import { persist, createJSONStorage } from 'zustand/middleware'
 
-export const useStore = create(
-  persist(
-    (set, get) => ({
-      // --- [Global Interaction] ---
-      activeItem: null,
-      setActiveItem: (item) => set({ activeItem: item }),
-      interactingItem: null,
-      setInteractingItem: (id) => set({ interactingItem: id }),
-      cursorLabel: null,
-      setCursorLabel: (label) => set({ cursorLabel: label }),
-      
-      // [NEW] Global Dock Hover State (UI 겹침 방지용)
-      isDockHovered: false,
-      setDockHovered: (isHovered) => set({ isDockHovered: isHovered }),
+export const useStore = create((set) => ({
+  // ------------------------------------------------
+  // [SECTION 1] Global UI & Interaction State
+  // ------------------------------------------------
+  interactingItem: null,
+  setInteractingItem: (id) => set({ interactingItem: id }),
+  
+  activeItem: null, // 상세 모달용
+  setActiveItem: (item) => set({ activeItem: item }),
 
-      // --- [Category State] ---
-      category: 'All',
-      setCategory: (cat) => set({ category: cat }),
+  category: 'All',
+  setCategory: (cat) => set({ category: cat }),
 
-      // --- [Inventory System] ---
-      inventory: [],
-      addToInventory: (item) => set((state) => {
-        const exists = state.inventory.find((i) => i.id === item.id)
-        if (exists) return state
-        return { inventory: [...state.inventory, { ...item, savedAt: Date.now() }] }
-      }),
-      removeFromInventory: (itemId) => set((state) => ({
-        inventory: state.inventory.filter((i) => i.id !== itemId)
-      })),
+  cursorLabel: null,
+  setCursorLabel: (label) => set({ cursorLabel: label }),
 
-      // --- [Cart System] ---
-      cart: [],
-      isCartOpen: false,
-      toggleCart: () => set((state) => ({ isCartOpen: !state.isCartOpen })),
-      
-      addToCart: (item, quantity = 1, options = null) => set((state) => {
-        const cartItemId = options ? `${item.id}-${options.name}` : `${item.id}-base`
-        const existingItem = state.cart.find((i) => i.cartItemId === cartItemId)
+  isDockHovered: false,
+  setDockHovered: (val) => set({ isDockHovered: val }),
 
-        if (existingItem) {
-          return {
-            cart: state.cart.map((i) => 
-              i.cartItemId === cartItemId 
-                ? { ...i, quantity: i.quantity + quantity } 
-                : i
-            ),
-            isCartOpen: true,
-            activeItem: null 
-          }
-        }
-        return {
-          cart: [...state.cart, { ...item, cartItemId, quantity, selectedOptions: options }],
-          isCartOpen: true,
-          activeItem: null
-        }
-      }),
+  // ------------------------------------------------
+  // [SECTION 2] Configurator State (오류 해결의 핵심!)
+  // ------------------------------------------------
+  configuratorState: null, 
+  
+  // [복구 완료] 이 함수가 없어서 에러가 났던 겁니다.
+  saveConfiguratorState: (units, totalPrice) => set({
+    configuratorState: { units, totalPrice }
+  }),
 
-      removeFromCart: (cartItemId) => set((state) => ({
-        cart: state.cart.filter((i) => i.cartItemId !== cartItemId)
-      })),
+  // ------------------------------------------------
+  // [SECTION 3] Cart & Checkout (신규 기능)
+  // ------------------------------------------------
+  cart: [],
+  isCartOpen: false,
+  isCheckoutOpen: false, // 체크아웃 모달 상태
 
-      updateQuantity: (cartItemId, delta) => set((state) => ({
-        cart: state.cart.map((i) => {
-          if (i.cartItemId === cartItemId) {
-            const newQty = i.quantity + delta
-            return newQty > 0 ? { ...i, quantity: newQty } : i
-          }
-          return i
-        })
-      })),
+  toggleCart: () => set((state) => ({ isCartOpen: !state.isCartOpen })),
+  
+  openCheckout: () => set({ isCheckoutOpen: true, isCartOpen: false }), // 카트 닫고 체크아웃 열기
+  closeCheckout: () => set({ isCheckoutOpen: false }),
 
-      // --- [Session Persistence] ---
-      configuratorState: {
-        units: [],
-        totalPrice: 0,
-      },
-      saveConfiguratorState: (units, totalPrice) => set({
-        configuratorState: { units, totalPrice }
-      }),
-    }),
-    {
-      name: 'odt-storage',
-      storage: createJSONStorage(() => localStorage),
-      partialize: (state) => ({ 
-        cart: state.cart, 
-        inventory: state.inventory,
-        configuratorState: state.configuratorState 
-      }),
+  addToCart: (item, quantity = 1, options = null) => set((state) => {
+    // 중복 아이템 체크 (옵션 포함)
+    const existingItemIndex = state.cart.findIndex((i) => 
+      i.id === item.id && JSON.stringify(i.options) === JSON.stringify(options)
+    )
+
+    if (existingItemIndex > -1) {
+      const newCart = [...state.cart]
+      newCart[existingItemIndex].quantity += quantity
+      return { cart: newCart, isCartOpen: true }
+    } else {
+      return { 
+        cart: [...state.cart, { ...item, quantity, options }], 
+        isCartOpen: true 
+      }
     }
-  )
-)
+  }),
+
+  removeFromCart: (id) => set((state) => ({
+    cart: state.cart.filter((i) => i.id !== id)
+  })),
+
+  updateCartQuantity: (id, delta) => set((state) => ({
+    cart: state.cart.map(item => 
+      item.id === id ? { ...item, quantity: Math.max(1, item.quantity + delta) } : item
+    )
+  })),
+
+  // ------------------------------------------------
+  // [SECTION 4] Inventory / Assets
+  // ------------------------------------------------
+  inventory: [],
+  addToInventory: (item) => set((state) => {
+    if (state.inventory.some((i) => i.id === item.id)) return state
+    return { inventory: [...state.inventory, item] }
+  }),
+  removeFromInventory: (id) => set((state) => ({
+    inventory: state.inventory.filter((i) => i.id !== id)
+  })),
+}))

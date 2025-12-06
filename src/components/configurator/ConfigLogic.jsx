@@ -5,17 +5,16 @@ import { useFrame } from "@react-three/fiber";
 import { useSpring, animated } from "@react-spring/three";
 
 import { 
-  WOOD_THICK, DEPTH, DICE_SIZE, COLUMN_PITCH, SIDE_THICK, INNER_WIDTH, isHeightValid, getUnitWidth 
+  WOOD_THICK, DEPTH, DICE_SIZE, COLUMN_PITCH, SIDE_THICK, INNER_WIDTH, isHeightValid, getUnitWidth, LEG_HEIGHT 
 } from "./constants";
 import { styles } from "./styles";
 import { 
   WoodShelf, OuterSteelPanel, VerticalWoodPanel, ComplexColumn, CabinetLight, Dimensions,
   AccessoryDoubleDoor, AccessoryFlipDoor, AccessorySpeaker, AccessoryShelf,
-  WoodMaterialVertical 
+  WoodMaterialVertical, UnitLeg 
 } from "./ConfigAssets";
 
-// --- Helper: ID기반 고정 난수 생성기 ---
-// ID가 같으면 항상 같은 숫자를 반환합니다. (플리커링 방지)
+// --- Helper ---
 const getDeterministicRandom = (seedStr) => {
   let hash = 0;
   for (let i = 0; i < seedStr.length; i++) {
@@ -52,7 +51,7 @@ export const GlobalSelectionMarker = ({ x, y, visible }) => {
   );
 };
 
-const CellSpace = ({ width, height, position, accessoryData, activeTool, isValid, onInteract }) => {
+const CellSpace = ({ width, height, position, accessoryData, activeTool, isValid, onInteract, isHighlighted }) => {
   const [hovered, setHover] = useState(false);
   useCursor(hovered && activeTool && isValid);
   
@@ -86,13 +85,14 @@ const CellSpace = ({ width, height, position, accessoryData, activeTool, isValid
         <planeGeometry args={[width - 0.02, height - 0.02]} />
         <meshBasicMaterial color={guideColor} transparent opacity={guideOpacity} side={THREE.DoubleSide} depthWrite={false} />
       </mesh>
-      {accessoryData?.type === "door-double" && <AccessoryDoubleDoor width={width} height={height} />}
-      {accessoryData?.type === "door-flip" && <AccessoryFlipDoor width={width} height={height} />}
-      {accessoryData?.type === "speaker" && <AccessorySpeaker width={width} height={height} />}
+      {/* 악세서리에도 하이라이트 전달 */}
+      {accessoryData?.type === "door-double" && <AccessoryDoubleDoor width={width} height={height} isHighlighted={isHighlighted} />}
+      {accessoryData?.type === "door-flip" && <AccessoryFlipDoor width={width} height={height} isHighlighted={isHighlighted} />}
+      {accessoryData?.type === "speaker" && <AccessorySpeaker width={width} height={height} isHighlighted={isHighlighted} />}
       {accessoryData?.type === "shelf" && (
         <group>
           {Array.from({ length: accessoryData.count || 1 }).map((_, i) => (
-            <AccessoryShelf key={i} width={width} position={[0, -height/2 + (height/((accessoryData.count||1)+1))*(i+1), 0]} />
+            <AccessoryShelf key={i} width={width} position={[0, -height/2 + (height/((accessoryData.count||1)+1))*(i+1), 0]} isHighlighted={isHighlighted} />
           ))}
         </group>
       )}
@@ -100,46 +100,59 @@ const CellSpace = ({ width, height, position, accessoryData, activeTool, isValid
   );
 };
 
-const BlockAssembler = ({ width, rows, columns, unitId, blockId, accessories, activeTool, onCellClick, isNightMode }) => {
-  let currentY = 0;
+const BlockAssembler = ({ width, rows, columns, unitId, blockId, accessories, activeTool, onCellClick, isNightMode, isBase, isHighlighted, hoveredRowId }) => {
+  let currentY = isBase ? LEG_HEIGHT : 0; 
   const elements = [];
   
   const totalH = rows.reduce((acc, h) => acc + (h||0), 0) + (rows.length + 1) * WOOD_THICK;
   
-  // [1. Back Panel] ID 기반 고정 시드 사용
+  // [1. Back Panel] - 스택 전체 하이라이트만 적용
   const backPanelSeed = getDeterministicRandom(`${unitId}-${blockId}-back`);
-
   elements.push(
-    <mesh key="back" position={[0, totalH/2, -DEPTH/2]} castShadow receiveShadow>
+    <mesh key="back" position={[0, currentY + totalH/2 - WOOD_THICK/2, -DEPTH/2]} castShadow receiveShadow>
       <boxGeometry args={[width, totalH, 0.005]} />
-      <WoodMaterialVertical seed={backPanelSeed} /> 
+      <WoodMaterialVertical seed={backPanelSeed} isHighlighted={isHighlighted ? 'stack' : null} /> 
     </mesh>
   );
 
-  // [2. Base]
-  elements.push(<WoodShelf key="base" width={width} position={[0, WOOD_THICK/2, 0]} seed={getDeterministicRandom(`${unitId}-${blockId}-base`)} />);
-  currentY += WOOD_THICK;
-
+  // [2. Base] - 스택 전체 하이라이트 적용
+  elements.push(<WoodShelf key="base" width={width} position={[0, currentY + WOOD_THICK/2, 0]} seed={getDeterministicRandom(`${unitId}-${blockId}-base`)} isHighlighted={isHighlighted ? 'stack' : null} />);
+  
   const nodeXArr = Array.from({ length: columns + 1 }, (_, i) => -width/2 + DICE_SIZE/2 + i * COLUMN_PITCH);
 
-  // [3. Rows]
+  // [3. Legs] - 스택 전체 하이라이트 적용
+  if (isBase) {
+    nodeXArr.forEach((x, i) => {
+      elements.push(<UnitLeg key={`leg-f-${i}`} position={[x, LEG_HEIGHT/2, DEPTH/2 - DICE_SIZE/2]} isHighlighted={isHighlighted ? 'stack' : null} />);
+      elements.push(<UnitLeg key={`leg-b-${i}`} position={[x, LEG_HEIGHT/2, -(DEPTH/2 - DICE_SIZE/2)]} isHighlighted={isHighlighted ? 'stack' : null} />);
+    });
+  }
+
+  currentY += WOOD_THICK;
+
+  // [4. Rows]
   rows.forEach((h, rIdx) => {
     if (!h) return;
     const isRowValid = activeTool ? isHeightValid(activeTool, h) : false;
+    
+    // [핵심 로직] Row가 선택되었으면 'row' (강함), 스택만 선택되었으면 'stack' (약함)
+    const rowKey = `${unitId}-${blockId}-${rIdx}`;
+    const isRowHighlighted = rowKey === hoveredRowId;
+    const effectiveHighlight = isRowHighlighted ? 'row' : (isHighlighted ? 'stack' : null);
     
     elements.push(
       <group key={`row-${rIdx}`} position={[0, currentY + h/2, 0]}>
         {nodeXArr.map((x, i) => (
           <group key={`col-${i}`}>
-            <ComplexColumn height={h} position={[x, 0, DEPTH/2 - DICE_SIZE/2]} />
-            <ComplexColumn height={h} position={[x, 0, -(DEPTH/2 - DICE_SIZE/2)]} />
+            <ComplexColumn height={h} position={[x, 0, DEPTH/2 - DICE_SIZE/2]} isHighlighted={effectiveHighlight} />
+            <ComplexColumn height={h} position={[x, 0, -(DEPTH/2 - DICE_SIZE/2)]} isHighlighted={effectiveHighlight} />
           </group>
         ))}
         {nodeXArr.map((x, i) => {
            const panelSeed = getDeterministicRandom(`${unitId}-${blockId}-${rIdx}-panel-${i}`);
-           if(i===0) return <group key={`p-${i}`}><OuterSteelPanel height={h} position={[x - DICE_SIZE/2 - SIDE_THICK/2, 0, 0]} /><VerticalWoodPanel height={h} position={[x + DICE_SIZE/2 + WOOD_THICK/2, 0, 0]} seed={panelSeed} /></group>;
-           if(i===columns) return <group key={`p-${i}`}><VerticalWoodPanel height={h} position={[x - DICE_SIZE/2 - WOOD_THICK/2, 0, 0]} seed={panelSeed} /><OuterSteelPanel height={h} position={[x + DICE_SIZE/2 + SIDE_THICK/2, 0, 0]} /></group>;
-           return <group key={`p-${i}`}><VerticalWoodPanel height={h} position={[x - DICE_SIZE/2 - WOOD_THICK/2, 0, 0]} seed={panelSeed} /><VerticalWoodPanel height={h} position={[x + DICE_SIZE/2 + WOOD_THICK/2, 0, 0]} seed={panelSeed} /></group>;
+           if(i===0) return <group key={`p-${i}`}><OuterSteelPanel height={h} position={[x - DICE_SIZE/2 - SIDE_THICK/2, 0, 0]} isHighlighted={effectiveHighlight} /><VerticalWoodPanel height={h} position={[x + DICE_SIZE/2 + WOOD_THICK/2, 0, 0]} seed={panelSeed} isHighlighted={effectiveHighlight} /></group>;
+           if(i===columns) return <group key={`p-${i}`}><VerticalWoodPanel height={h} position={[x - DICE_SIZE/2 - WOOD_THICK/2, 0, 0]} seed={panelSeed} isHighlighted={effectiveHighlight} /><OuterSteelPanel height={h} position={[x + DICE_SIZE/2 + SIDE_THICK/2, 0, 0]} isHighlighted={effectiveHighlight} /></group>;
+           return <group key={`p-${i}`}><VerticalWoodPanel height={h} position={[x - DICE_SIZE/2 - WOOD_THICK/2, 0, 0]} seed={panelSeed} isHighlighted={effectiveHighlight} /><VerticalWoodPanel height={h} position={[x + DICE_SIZE/2 + WOOD_THICK/2, 0, 0]} seed={panelSeed} isHighlighted={effectiveHighlight} /></group>;
         })}
         {Array.from({ length: columns }).map((_, c) => {
           const centerX = (nodeXArr[c] + nodeXArr[c+1]) / 2;
@@ -155,22 +168,24 @@ const BlockAssembler = ({ width, rows, columns, unitId, blockId, accessories, ac
               activeTool={activeTool} 
               isValid={isRowValid} 
               onInteract={() => onCellClick(unitId, cellKey, h)} 
+              isHighlighted={effectiveHighlight} 
             />
           );
         })}
       </group>
     );
     currentY += h;
-    // [Top Shelf]
-    elements.push(<WoodShelf key={`top-${rIdx}`} width={width} position={[0, currentY + WOOD_THICK/2, 0]} seed={getDeterministicRandom(`${unitId}-${blockId}-${rIdx}-top`)} />);
+    // [Top Shelf] 해당 Row에 포함된 상판
+    elements.push(<WoodShelf key={`top-${rIdx}`} width={width} position={[0, currentY + WOOD_THICK/2, 0]} seed={getDeterministicRandom(`${unitId}-${blockId}-${rIdx}-top`)} isHighlighted={effectiveHighlight} />);
     currentY += WOOD_THICK;
   });
   return <group>{elements}</group>;
 };
 
-export const UnitAssembler = ({ unit, position, showDimensions, showNames, isSelected, label, activeTool, onCellClick, isNightMode, onUnitClick }) => {
+export const UnitAssembler = ({ unit, position, showDimensions, showNames, isSelected, label, activeTool, onCellClick, isNightMode, onUnitClick, hoveredBlockId, hoveredRowId }) => {
   const currentWidth = getUnitWidth(unit.columns);
-  const totalHeight = unit.blocks.reduce((acc, b) => acc + b.rows.reduce((r, h) => r + h + WOOD_THICK, 0) + WOOD_THICK, 0);
+  const totalHeight = unit.blocks.reduce((acc, b) => acc + b.rows.reduce((r, h) => r + h + WOOD_THICK, 0) + WOOD_THICK, 0) + LEG_HEIGHT;
+  
   const [hovered, setHover] = useState(false);
   useCursor(hovered && !activeTool);
   
@@ -207,10 +222,32 @@ export const UnitAssembler = ({ unit, position, showDimensions, showNames, isSel
       }}
     >
       <mesh visible={false} position={[0, totalHeight/2, 0]}><boxGeometry args={[currentWidth + 0.1, totalHeight, DEPTH + 0.1]} /></mesh>
-      {unit.blocks.map(block => {
-        const h = block.rows.reduce((a, b) => a + b + WOOD_THICK, 0) + WOOD_THICK;
-        const el = <group key={block.id} position={[0, curY, 0]}><BlockAssembler width={currentWidth} rows={block.rows} columns={unit.columns} unitId={unit.id} blockId={block.id} accessories={unit.accessories} activeTool={activeTool} onCellClick={onCellClick} isNightMode={isNightMode} /></group>;
-        curY += h;
+      {unit.blocks.map((block, index) => {
+        const isBase = index === 0;
+        const isHighlighted = block.id === hoveredBlockId;
+
+        const blockHeight = block.rows.reduce((a, b) => a + b + WOOD_THICK, 0) + WOOD_THICK;
+        const offsetHeight = isBase ? blockHeight + LEG_HEIGHT : blockHeight;
+
+        const el = (
+          <group key={block.id} position={[0, curY, 0]}>
+            <BlockAssembler 
+              width={currentWidth} 
+              rows={block.rows} 
+              columns={unit.columns} 
+              unitId={unit.id} 
+              blockId={block.id} 
+              accessories={unit.accessories} 
+              activeTool={activeTool} 
+              onCellClick={onCellClick} 
+              isNightMode={isNightMode} 
+              isBase={isBase} 
+              isHighlighted={isHighlighted}
+              hoveredRowId={hoveredRowId} // Row ID 전달
+            />
+          </group>
+        );
+        curY += offsetHeight; 
         return el;
       })}
       <Dimensions width={currentWidth} height={totalHeight} visible={showDimensions && (hovered || isSelected)} />

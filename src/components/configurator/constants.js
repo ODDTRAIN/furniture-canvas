@@ -1,11 +1,16 @@
-// ... (기존 치수 상수들 유지) ...
+// ... (기존 치수 상수들 유지)
 export const DEPTH = 0.285;
 export const WOOD_THICK = 0.015;
 export const SIDE_THICK = 0.0012;
 export const DICE_SIZE = 0.025;
 export const PIPE_RADIUS = 0.006;
 export const INNER_WIDTH = 0.37;
-export const UNIT_GAP = 0.05;
+
+// [수정 포인트] UNIT_GAP: 0.05(5cm) -> 0.15(15cm)
+// 치수선과 텍스트가 서로 겹치지 않도록 충분한 간격을 확보합니다.
+export const UNIT_GAP = 0.15; 
+export const LEG_HEIGHT = 0.04;
+
 export const FILLET = 0.001;
 
 export const COLUMN_PITCH = DICE_SIZE / 2 + WOOD_THICK + INNER_WIDTH + WOOD_THICK + DICE_SIZE / 2;
@@ -34,16 +39,14 @@ export const ACCESSORY_PRICES = {
   eraser: 0,
 };
 
-// [UPDATED] 텍스트형 라벨로 변경
 export const TOOLS = [
   { id: "door-double", label: "양문형 도어" },
   { id: "door-flip", label: "플립 도어" },
   { id: "speaker", label: "스피커" },
   { id: "shelf", label: "추가 선반" },
-  { id: "eraser", label: "삭제" }, // 텍스트 유지 (빨간점은 렌더링에서 처리)
+  { id: "eraser", label: "삭제" },
 ];
 
-// ... (나머지 로직 유지) ...
 const VALID_HEIGHTS = {
   "door-double": [0.534, 0.634],
   "door-flip": [0.384],

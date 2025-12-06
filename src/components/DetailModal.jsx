@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { X, ChevronLeft, ChevronRight, ShoppingBag, Plus, Minus, Trash2, Check, Box } from 'lucide-react'
 import { useStore } from '../store/useStore'
 
-// ASSETS 데이터 (기존 유지)
+// ASSETS 데이터
 const ASSETS = {
   images: {
     product: [
@@ -43,11 +43,9 @@ export default function DetailModal() {
   const [showAccessoryPopover, setShowAccessoryPopover] = useState(false)
   const [accessoryCount, setAccessoryCount] = useState(1)
   const [isAccessoryAdded, setIsAccessoryAdded] = useState(false)
-  
-  // [NEW] 저장 피드백 상태 (일시적)
+  const [isHovered, setIsHovered] = useState(false)
   const [saveFeedback, setSaveFeedback] = useState(false)
 
-  // 현재 아이템이 이미 인벤토리에 있는지 확인
   const isSavedInInventory = activeItem ? inventory.some(i => i.id === activeItem.id) : false
 
   const currentImages = ASSETS.images[galleryMode]
@@ -78,15 +76,13 @@ export default function DetailModal() {
     addToCart(activeItem, 1, options)
   }
 
-  // [UPDATED] Asset 저장/삭제 핸들러 (피드백 추가)
   const handleToggleAsset = () => {
     if (isSavedInInventory) {
       removeFromInventory(activeItem.id)
     } else {
       addToInventory(activeItem)
-      // 저장 성공 시 피드백 애니메이션 트리거
       setSaveFeedback(true)
-      setTimeout(() => setSaveFeedback(false), 1500) // 1.5초 후 복귀
+      setTimeout(() => setSaveFeedback(false), 1500)
     }
   }
 
@@ -96,7 +92,6 @@ export default function DetailModal() {
     <AnimatePresence>
       {activeItem && (
         <>
-          {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -105,7 +100,6 @@ export default function DetailModal() {
             className="fixed inset-0 z-40 bg-white/40 backdrop-blur-lg"
           />
 
-          {/* Modal Container */}
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -116,7 +110,12 @@ export default function DetailModal() {
             >
               
               {/* --- Left Column: Gallery --- */}
-              <div className="relative w-full md:w-3/5 h-1/2 md:h-full bg-gray-50 overflow-hidden group">
+              <div 
+                className="relative w-full md:w-3/5 h-1/2 md:h-full bg-gray-50 overflow-hidden group"
+                onMouseEnter={() => setIsHovered(true)}
+                onMouseLeave={() => setIsHovered(false)}
+              >
+                 {/* Top Toggle */}
                  <div className="absolute top-6 left-0 right-0 flex justify-center z-20">
                     <div className="bg-gray-200/80 backdrop-blur-md p-1 rounded-full flex gap-1">
                       {['product', 'lifestyle'].map((mode) => (
@@ -132,6 +131,8 @@ export default function DetailModal() {
                       ))}
                     </div>
                   </div>
+
+                  {/* Image Slider */}
                   <AnimatePresence initial={false} custom={direction} mode="popLayout">
                     <motion.img
                       key={`${galleryMode}-${page}`}
@@ -153,23 +154,75 @@ export default function DetailModal() {
                       className="absolute inset-0 w-full h-full object-cover cursor-grab active:cursor-grabbing"
                     />
                   </AnimatePresence>
-                  <div className="absolute inset-0 flex items-center justify-between p-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
-                    <button onClick={() => paginate(-1)} className="p-3 rounded-full bg-white/80 backdrop-blur text-black hover:bg-white shadow-lg pointer-events-auto"><ChevronLeft size={24} /></button>
-                    <button onClick={() => paginate(1)} className="p-3 rounded-full bg-white/80 backdrop-blur text-black hover:bg-white shadow-lg pointer-events-auto"><ChevronRight size={24} /></button>
+
+                  {/* Navigation Arrows */}
+                  <AnimatePresence>
+                    {isHovered && (
+                      <>
+                        <motion.button 
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: -10 }}
+                          transition={{ duration: 0.2 }}
+                          onClick={() => paginate(-1)} 
+                          className="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/70 backdrop-blur-md text-black hover:bg-white hover:scale-110 shadow-lg pointer-events-auto transition-transform z-20"
+                        >
+                          <ChevronLeft size={24} />
+                        </motion.button>
+                        <motion.button 
+                          initial={{ opacity: 0, x: 10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: 10 }}
+                          transition={{ duration: 0.2 }}
+                          onClick={() => paginate(1)} 
+                          className="absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/70 backdrop-blur-md text-black hover:bg-white hover:scale-110 shadow-lg pointer-events-auto transition-transform z-20"
+                        >
+                          <ChevronRight size={24} />
+                        </motion.button>
+                      </>
+                    )}
+                  </AnimatePresence>
+
+                  {/* [NEW STANDARD] Dynamic Expanding Pill Indicator */}
+                  <div className="absolute bottom-6 left-0 right-0 flex justify-center z-20 pointer-events-none">
+                    <div className="flex items-center gap-2 p-2 bg-black/20 backdrop-blur-xl rounded-full">
+                      {currentImages.map((_, idx) => {
+                        const isActive = idx === imageIndex;
+                        return (
+                          <motion.button
+                            key={idx}
+                            onClick={() => {
+                              const diff = idx - imageIndex;
+                              if (diff !== 0) paginate(diff);
+                            }}
+                            layout // [핵심] 너비 변화 애니메이션 활성화
+                            initial={false}
+                            animate={{
+                              width: isActive ? 24 : 6, // 활성: 긴 알약(24px), 비활성: 작은 점(6px)
+                              opacity: isActive ? 1 : 0.5,
+                              backgroundColor: "#ffffff"
+                            }}
+                            transition={{
+                              type: "spring",
+                              stiffness: 500,
+                              damping: 30
+                            }}
+                            className="h-1.5 rounded-full cursor-pointer pointer-events-auto"
+                          />
+                        );
+                      })}
+                    </div>
                   </div>
               </div>
 
-              {/* --- Right Column: Details & Actions --- */}
+              {/* --- Right Column (기존 유지) --- */}
               <div className="w-full md:w-2/5 h-1/2 md:h-full flex flex-col bg-white relative">
-                
-                {/* Close Button */}
                 <div className="absolute top-6 right-6 z-10">
                   <button onClick={() => setActiveItem(null)} className="p-2 rounded-full bg-gray-50 hover:bg-gray-100 transition-colors text-gray-500 hover:text-black">
                     <X size={20} />
                   </button>
                 </div>
 
-                {/* Header */}
                 <div className="px-8 pt-10 pb-6 border-b border-gray-100">
                   <h2 className="text-3xl font-medium tracking-tight text-black mb-2">{activeItem.name}</h2>
                   <AnimatePresence mode="wait">
@@ -184,13 +237,11 @@ export default function DetailModal() {
                   </AnimatePresence>
                 </div>
 
-                {/* Content */}
                 <div className="flex-1 overflow-y-auto px-8 py-6 relative no-scrollbar">
                   <div className="prose prose-lg text-gray-600 font-light leading-relaxed">
                     <p>{activeItem.description || "Designed for the modern habitat, this piece balances structural integrity with visual weightlessness."}</p>
                   </div>
                   
-                  {/* Accessory Configurator */}
                   <div className="mt-10 mb-20 relative">
                     <p className="text-xs font-bold tracking-widest uppercase text-gray-400 mb-4">Customization</p>
                     {isAccessoryAdded ? (
@@ -248,9 +299,7 @@ export default function DetailModal() {
                   </div>
                 </div>
 
-                {/* Footer Buttons (Updated with Feedback) */}
                 <div className="p-8 border-t border-gray-100 bg-white z-10 flex gap-3">
-                  {/* 1. Save Asset Button */}
                   <motion.button
                     onClick={handleToggleAsset}
                     animate={{
@@ -280,7 +329,6 @@ export default function DetailModal() {
                     )}
                   </motion.button>
 
-                  {/* 2. Add to Cart Button (Main) */}
                   <button 
                     onClick={handleAddToCart}
                     className="flex-1 bg-black text-white py-4 rounded-full font-medium tracking-wide hover:bg-gray-800 transition-transform active:scale-95 flex items-center justify-center gap-2 shadow-xl shadow-black/10"

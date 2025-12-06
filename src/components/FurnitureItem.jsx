@@ -2,6 +2,7 @@ import React, { useMemo, useRef, useEffect, useState } from 'react'
 import { View, PerspectiveCamera, ContactShadows, Environment, PresentationControls, useGLTF, Lightformer } from '@react-three/drei'
 import { useSpring, animated } from '@react-spring/three'
 import { useStore } from '../store/useStore'
+import { useFrame } from '@react-three/fiber'
 
 const Model = ({ item, isHovered }) => {
   const { scene } = useGLTF(item.modelUrl)
@@ -12,12 +13,28 @@ const Model = ({ item, isHovered }) => {
   
   const pointerStart = useRef({ x: 0, y: 0 })
   const isPressed = useRef(false)
+  
+  const groupRef = useRef()
 
-  // [Spring] 호버 애니메이션
+  // [Magnetic Tilt Effect]
+  useFrame((state) => {
+    if (isHovered && !isInteracting && groupRef.current) {
+      const x = state.pointer.x * 0.1
+      const y = state.pointer.y * 0.1
+      groupRef.current.rotation.x += (-y - groupRef.current.rotation.x) * 0.1
+      groupRef.current.rotation.y += (x - groupRef.current.rotation.y) * 0.1
+    } else if (!isHovered && groupRef.current) {
+      groupRef.current.rotation.x += (0 - groupRef.current.rotation.x) * 0.1
+      groupRef.current.rotation.y += (0 - groupRef.current.rotation.y) * 0.1
+    }
+  })
+
+  // [Spring Animation]
   const { scale, position } = useSpring({
-    scale: isInteracting ? 19 : (isHovered ? 14 : 13), 
+    scale: isInteracting ? 19 : (isHovered ? 15 : 13),
+    // [중요] 인터랙션 시 -6 (지하)으로 이동 -> 그림자 끄는 로직 필수
     position: isInteracting ? [0, -6, 0] : [0, -3.5, 0], 
-    config: { mass: 1, tension: 170, friction: 26 }
+    config: { mass: 2, tension: 170, friction: 40 }
   })
 
   useEffect(() => {
@@ -42,20 +59,22 @@ const Model = ({ item, isHovered }) => {
   }
 
   return (
-    <animated.primitive 
-      object={clone}
-      scale={scale}
-      position={position}
-      onPointerDown={handlePointerDown}
-      onPointerOver={() => {
-        document.body.style.cursor = 'grab'
-        setCursorLabel(true) 
-      }}
-      onPointerOut={() => {
-        document.body.style.cursor = 'auto'
-        setCursorLabel(null)
-      }}
-    />
+    <group ref={groupRef}>
+      <animated.primitive 
+        object={clone}
+        scale={scale}
+        position={position}
+        onPointerDown={handlePointerDown}
+        onPointerOver={() => {
+          document.body.style.cursor = 'grab'
+          setCursorLabel(true) 
+        }}
+        onPointerOut={() => {
+          document.body.style.cursor = 'auto'
+          setCursorLabel(null)
+        }}
+      />
+    </group>
   )
 }
 
@@ -63,6 +82,29 @@ export default function FurnitureItem({ item, className }) {
   const interactingItem = useStore((state) => state.interactingItem)
   const isInteracting = interactingItem === item.id 
   const [isHovered, setIsHovered] = useState(false)
+  
+  // [FIX] 그림자 렌더링 준비 상태
+  const [shadowReady, setShadowReady] = useState(true)
+
+  useEffect(() => {
+    if (isInteracting) {
+      // 1. 잡는 순간 그림자 즉시 끄기
+      setShadowReady(false)
+    } else {
+      // 2. 놓는 순간 바로 켜지 말고, 가구가 튀어 올라올 시간(약 550ms)을 기다림
+      // 이 딜레이가 없으면 가구가 바닥을 뚫고 있을 때 그림자가 찍혀서 이상하게 나옴
+      const timer = setTimeout(() => {
+        setShadowReady(true)
+      }, 550) 
+      return () => clearTimeout(timer)
+    }
+  }, [isInteracting])
+
+  // [Logic] 
+  // shadowReady가 false면(드래그 중 or 복귀 중) -> 연산 0
+  // shadowReady가 true면(안착 완료) -> 호버 여부에 따라 1 or Infinity
+  const shadowFrames = shadowReady ? (isHovered ? Infinity : 1) : 0;
+  const shadowOpacity = shadowReady ? 0.6 : 0;
 
   return (
     <View 
@@ -70,11 +112,8 @@ export default function FurnitureItem({ item, className }) {
       onPointerEnter={() => setIsHovered(true)}
       onPointerLeave={() => setIsHovered(false)}
     >
-      
-      {/* 1. 베이스 조명 */}
       <ambientLight intensity={0.9} color="#ffffff" />
-
-      {/* 2. Key Light: 드래그(Interacting) 할 때만 동적 그림자 계산 */}
+      
       <spotLight 
         position={[20, 20, 20]} 
         angle={0.4} 
@@ -85,7 +124,6 @@ export default function FurnitureItem({ item, className }) {
         color="#ffffff"
       />
      
-      {/* 3. 보조 조명 */}
       <rectAreaLight 
         width={20} height={20} 
         color={"white"} 
@@ -96,9 +134,6 @@ export default function FurnitureItem({ item, className }) {
 
       <spotLight position={[0, 10, -25]} intensity={5.0} color="#ffffff" distance={60} />
 
-      {/* [최적화 1] Environment 해상도 조정 (1024 -> 512)
-          스테인리스 반사 느낌은 유지하되, 연산량은 1/4로 줄입니다.
-      */}
       <Environment resolution={512} blur={0.8}>
         <group rotation={[0, 0, 0]}>
           <Lightformer form="rect" intensity={11} position={[3.2, -8.5, 11.2]} scale={[9, 15.6, 1]} rotation-x={Math.PI / 5} rotation-z={Math.PI / 3} rotation-y={Math.PI / 2.3} target={[0, 0, 0]} />
@@ -124,22 +159,20 @@ export default function FurnitureItem({ item, className }) {
         <Model item={item} isHovered={isHovered} />
       </PresentationControls>
 
-      {/* [최적화 2] ContactShadows Baking (frames={1})
-          렉의 주범입니다! frames={1}을 주면, 처음 딱 1번만 그림자를 그리고 
-          그 이후에는 이미지처럼 재사용합니다. 호버 시 렉이 완전히 사라질 겁니다.
-      */}
+      {/* [수정] 딜레이 로직이 적용된 그림자 */}
       <ContactShadows 
+        key={shadowReady ? 'ready' : 'hidden'} // [핵심] 상태 변경 시 리셋하여 잔상 제거
         position={[0, -3.6, 0]} 
-        opacity={isInteracting ? 0 : 0.5} 
-        scale={30} 
-        blur={2.5} 
-        far={4} 
-        resolution={512} // 해상도 최적화
-        frames={1}       // [핵심] 그림자를 구워서 연산 멈춤
+        opacity={shadowOpacity} 
+        scale={40} 
+        blur={2} 
+        far={4.5} 
+        resolution={256} 
+        frames={shadowFrames} 
         color="#000000"
       />
 
-      <PerspectiveCamera makeDefault fov={20} position={[0, 0, 50]} />
+      <PerspectiveCamera makeDefault fov={25} position={[0, 0, 45]} />
     </View>
   )
 }
