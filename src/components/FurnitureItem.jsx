@@ -1,9 +1,9 @@
-import React, { useMemo, useRef, useEffect } from 'react'
+import React, { useMemo, useRef, useEffect, useState } from 'react'
 import { View, PerspectiveCamera, ContactShadows, Environment, PresentationControls, useGLTF, Lightformer } from '@react-three/drei'
 import { useSpring, animated } from '@react-spring/three'
 import { useStore } from '../store/useStore'
 
-const Model = ({ item }) => {
+const Model = ({ item, isHovered }) => {
   const { scene } = useGLTF(item.modelUrl)
   const clone = useMemo(() => scene.clone(), [scene])
   
@@ -13,8 +13,9 @@ const Model = ({ item }) => {
   const pointerStart = useRef({ x: 0, y: 0 })
   const isPressed = useRef(false)
 
+  // [Spring] 호버 애니메이션
   const { scale, position } = useSpring({
-    scale: isInteracting ? 19 : 13, 
+    scale: isInteracting ? 19 : (isHovered ? 14 : 13), 
     position: isInteracting ? [0, -6, 0] : [0, -3.5, 0], 
     config: { mass: 1, tension: 170, friction: 26 }
   })
@@ -60,32 +61,31 @@ const Model = ({ item }) => {
 
 export default function FurnitureItem({ item, className }) {
   const interactingItem = useStore((state) => state.interactingItem)
-  const isInteracting = interactingItem === item.id
+  const isInteracting = interactingItem === item.id 
+  const [isHovered, setIsHovered] = useState(false)
 
   return (
-    <View className={`w-full h-full ${className}`}>
+    <View 
+      className={`w-full h-full ${className}`}
+      onPointerEnter={() => setIsHovered(true)}
+      onPointerLeave={() => setIsHovered(false)}
+    >
       
-      {/* ================================================================
-          💡 [THE GOLDEN BALANCE] 
-          정면은 "반사판"으로 그라데이션을 만들고, 
-          회전은 "측후면 기둥"으로 밝기를 유지합니다.
-         ================================================================ */}
-      
-      {/* 1. 베이스: 확 낮춤 (하얗게 뜨는 현상 방지) */}
+      {/* 1. 베이스 조명 */}
       <ambientLight intensity={0.9} color="#ffffff" />
 
-      {/* 2. Key Light: 우측 상단 (입체감만 살림) */}
+      {/* 2. Key Light: 드래그(Interacting) 할 때만 동적 그림자 계산 */}
       <spotLight 
         position={[20, 20, 20]} 
         angle={0.4} 
         penumbra={1} 
         intensity={0.4} 
-        castShadow 
+        castShadow={isInteracting} 
+        shadow-bias={-0.0001}
         color="#ffffff"
       />
      
-      
-      {/* 3. [정면 조명 삭제] -> 대신 은은한 Top Light만 유지 */}
+      {/* 3. 보조 조명 */}
       <rectAreaLight 
         width={20} height={20} 
         color={"white"} 
@@ -94,66 +94,48 @@ export default function FurnitureItem({ item, className }) {
         lookAt={[0, 0, 0]} 
       />
 
-      {/* 4. Rim Light: 뒷면 라인 */}
       <spotLight position={[0, 10, -25]} intensity={5.0} color="#ffffff" distance={60} />
 
-
-      {/* [환경 맵] 정면 반사판 + 측후면 기둥 */}
-      <Environment resolution={1024} blur={0.8}>
+      {/* [최적화 1] Environment 해상도 조정 (1024 -> 512)
+          스테인리스 반사 느낌은 유지하되, 연산량은 1/4로 줄입니다.
+      */}
+      <Environment resolution={512} blur={0.8}>
         <group rotation={[0, 0, 0]}>
-          
-          {/* ★ (A) 정면 그라데이션 반사판 (Magic Reflector) ★ */}
-          {/* 정면 하단에 배치. 이것 때문에 안쪽 스텐이 '아래 밝음 -> 위 어둠'이 됩니다. */}
-          <Lightformer 
-            form="rect" 
-            intensity={11} 
-            position={[3.2, -8.5, 11.2]} 
-            scale={[9, 15.6, 1]} 
-            rotation-x={Math.PI / 5} /* 45도 눕힘 */
-            rotation-z={Math.PI / 3}
-             rotation-y={Math.PI / 2.3}
-            target={[0, 0, 0]}
-          />
-
-          {/* ★ (B) 7 Pillars (수정됨) ★ */}
-          {/* 정면을 가리던 기둥들은 옆으로 치우고, 측면/후면만 감쌉니다 */}
-
-          {/* 우측면 (90도) */}
+          <Lightformer form="rect" intensity={11} position={[3.2, -8.5, 11.2]} scale={[9, 15.6, 1]} rotation-x={Math.PI / 5} rotation-z={Math.PI / 3} rotation-y={Math.PI / 2.3} target={[0, 0, 0]} />
           <Lightformer form="rect" intensity={1} position={[10, 0, 0]} scale={[20, 15, 1]} rotation-y={Math.PI/2} />
-          
-          {/* 좌측면 (-90도) */}
           <Lightformer form="rect" intensity={0.8} position={[-10, 0, 0]} scale={[15, 15, 1]} rotation-y={-Math.PI/2} />
-
-          {/* 우측 후면 (135도) */}
           <Lightformer form="rect" intensity={0.6} position={[8, 0, -8]} scale={[10, 15, 1]} target={[0,0,0]} />
-
-          {/* 좌측 후면 (-135도) */}
           <Lightformer form="rect" intensity={1} position={[-8, 0, -8]} scale={[12, 15, 1]} target={[0,0,0]} />
-          
-          {/* 정후면 (180도) */}
           <Lightformer form="rect" intensity={0.5} position={[0, 0, -10]} scale={[4, 15, 1]} rotation-y={Math.PI} />
-          
-          {/* 천장 */}
           <Lightformer form="circle" intensity={1} position={[0, 10, 0]} scale={[5, 5, 1]} rotation-x={Math.PI/2} />
-          
         </group>
       </Environment>
 
-      {/* ================================================================ */}
-
       <PresentationControls
-        global={false} cursor={false} snap={true} speed={1.5} zoom={1}
-        polar={[-0.1, Math.PI / 4]} azimuth={[-Infinity, Infinity]} 
+        global={false} 
+        cursor={false} 
+        snap={true} 
+        speed={1.5} 
+        zoom={1}
+        polar={[-0.1, Math.PI / 4]} 
+        azimuth={[-Infinity, Infinity]} 
+        config={{ mass: 1, tension: 170, friction: 26 }}
       >
-        <Model item={item} />
+        <Model item={item} isHovered={isHovered} />
       </PresentationControls>
 
+      {/* [최적화 2] ContactShadows Baking (frames={1})
+          렉의 주범입니다! frames={1}을 주면, 처음 딱 1번만 그림자를 그리고 
+          그 이후에는 이미지처럼 재사용합니다. 호버 시 렉이 완전히 사라질 겁니다.
+      */}
       <ContactShadows 
         position={[0, -3.6, 0]} 
         opacity={isInteracting ? 0 : 0.5} 
         scale={30} 
         blur={2.5} 
         far={4} 
+        resolution={512} // 해상도 최적화
+        frames={1}       // [핵심] 그림자를 구워서 연산 멈춤
         color="#000000"
       />
 
@@ -163,4 +145,3 @@ export default function FurnitureItem({ item, className }) {
 }
 
 useGLTF.preload('/models/chair.glb')
-// ...
