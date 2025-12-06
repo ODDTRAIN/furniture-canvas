@@ -2,12 +2,17 @@ import React, { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ShoppingBag } from 'lucide-react'
 import { useStore } from '../store/useStore'
+import { useLocation } from 'react-router-dom' // location 추가
 
 export default function CartControl() {
   const { cart, toggleCart } = useStore()
+  const location = useLocation() // 현재 페이지 확인
   
   const totalItems = cart.reduce((acc, item) => acc + item.quantity, 0)
   const [isBumped, setIsBumped] = useState(false)
+
+  // [수정] Configurator 페이지에서는 버튼 숨김 (HUD와 겹침 방지)
+  const isHidden = location.pathname === '/configurator';
 
   useEffect(() => {
     if (totalItems === 0) return
@@ -16,6 +21,8 @@ export default function CartControl() {
     return () => clearTimeout(timer)
   }, [totalItems])
 
+  if (isHidden) return null; // 여기서 렌더링 막기
+
   return (
     <motion.button
       onClick={toggleCart}
@@ -23,25 +30,20 @@ export default function CartControl() {
       animate={{ opacity: 1, y: 0 }}
       className={`
         fixed top-8 right-8 z-[60] 
-        /* 아이콘과 숫자를 가로로 나란히 배치 */
         flex items-center justify-center gap-2
         p-3 rounded-full
-        /* 배경 투명 */
         bg-transparent border-none
-        /* 호버 시에만 그림자와 블러 효과 */
         hover:bg-white/10 hover:shadow-lg hover:backdrop-blur-sm
         transition-all duration-300
         group
       `}
     >
-      {/* 장바구니 아이콘 */}
       <ShoppingBag 
         size={24} 
         strokeWidth={1.5} 
         className="text-black transition-transform duration-300 group-hover:scale-110" 
       />
       
-      {/* 숫자 표시: 아이콘 바로 옆에 텍스트로 배치 */}
       <AnimatePresence>
         {totalItems > 0 && (
           <motion.span

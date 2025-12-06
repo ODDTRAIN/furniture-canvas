@@ -1,6 +1,9 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import * as THREE from "three";
 import { Html, useCursor } from "@react-three/drei";
+import { useFrame } from "@react-three/fiber"; 
+import { useSpring, animated } from "@react-spring/three";
+
 import { 
   WOOD_THICK, DEPTH, DICE_SIZE, COLUMN_PITCH, SIDE_THICK, INNER_WIDTH, isHeightValid, getUnitWidth 
 } from "./constants";
@@ -10,22 +13,70 @@ import {
   AccessoryDoubleDoor, AccessoryFlipDoor, AccessorySpeaker, AccessoryShelf
 } from "./ConfigAssets";
 
-// --- Cell Interaction ---
+// --- Global Marker (기존 유지) ---
+export const GlobalSelectionMarker = ({ x, y, visible }) => {
+  const meshRef = useRef();
+  const { position, scale } = useSpring({
+    position: [x, y + 0.18, 0],
+    scale: visible ? 1 : 0,
+    config: { mass: 1, tension: 170, friction: 26 }
+  });
+
+  useFrame((state) => {
+    if (meshRef.current) {
+      const t = state.clock.getElapsedTime();
+      meshRef.current.position.y = Math.sin(t * 2) * 0.02; 
+      meshRef.current.rotation.x = t * 0.2;
+      meshRef.current.rotation.z = t * 0.15;
+    }
+  });
+
+  return (
+    <animated.group position={position} scale={scale}>
+      <mesh ref={meshRef} castShadow>
+        <sphereGeometry args={[0.02, 64, 64]} /> 
+        <meshPhysicalMaterial 
+          color="#000000" metalness={0.9} roughness={0.1} clearcoat={1.0} clearcoatRoughness={0.1} envMapIntensity={1.5}
+        />
+      </mesh>
+    </animated.group>
+  );
+};
+
+// --- [UPDATED] Cell Interaction (Anti-Aliasing / Z-Fighting Fix) ---
 const CellSpace = ({ width, height, position, accessoryData, activeTool, isValid, onInteract }) => {
   const [hovered, setHover] = useState(false);
   useCursor(hovered && activeTool && isValid);
   
-  let guideColor = "#0066cc";
+  let guideColor = "#1d1d1f"; 
   let guideOpacity = 0;
+  
   if (activeTool && isValid) {
-    if (activeTool === "eraser") { guideColor = "#ff3b30"; guideOpacity = hovered ? 0.3 : 0; }
-    else { guideOpacity = hovered ? 0.3 : 0.1; }
+    if (activeTool === "eraser") { 
+      guideColor = "#ff3b30"; 
+      guideOpacity = hovered ? 0.3 : 0.1;
+    } else {
+      if (accessoryData) {
+        guideOpacity = 0; 
+      } else {
+        guideColor = "#0066cc"; 
+        guideOpacity = hovered ? 0.6 : 0.25; 
+      }
+    }
   }
+
+  // [핵심] Z위치를 가구의 가장 앞면(Depth/2)보다 살짝 앞(+0.01)으로 설정
+  const guideZ = (DEPTH / 2) + 0.01;
 
   return (
     <group position={position}>
-      <mesh onClick={(e) => { e.stopPropagation(); if (activeTool && isValid) onInteract(); }} onPointerOver={(e) => { e.stopPropagation(); if (activeTool && isValid) setHover(true); }} onPointerOut={(e) => { e.stopPropagation(); setHover(false); }}>
-        <boxGeometry args={[width, height, DEPTH]} />
+      <mesh 
+        position={[0, 0, guideZ]} // 여기서 Z축을 앞으로 뺍니다. (Relative to group position)
+        onClick={(e) => { if (activeTool && isValid) { e.stopPropagation(); onInteract(); } }} 
+        onPointerOver={(e) => { e.stopPropagation(); if (activeTool && isValid) setHover(true); }} 
+        onPointerOut={(e) => { e.stopPropagation(); setHover(false); }}
+      >
+        <boxGeometry args={[width, height, 0.01]} />
         <meshBasicMaterial color={guideColor} transparent opacity={guideOpacity} depthWrite={false} side={THREE.DoubleSide} />
       </mesh>
       {accessoryData?.type === "door-double" && <AccessoryDoubleDoor width={width} height={height} />}
@@ -36,7 +87,7 @@ const CellSpace = ({ width, height, position, accessoryData, activeTool, isValid
   );
 };
 
-// --- Assemblers ---
+// --- Assemblers (기존 유지) ---
 const BlockAssembler = ({ width, rows, columns, unitId, blockId, accessories, activeTool, onCellClick, isNightMode }) => {
   let currentY = 0;
   const elements = [];
@@ -74,15 +125,34 @@ const BlockAssembler = ({ width, rows, columns, unitId, blockId, accessories, ac
   return <group>{elements}</group>;
 };
 
-export const UnitAssembler = ({ unit, position, showDimensions, showNames, isSelected, label, activeTool, onCellClick, isNightMode }) => {
+export const UnitAssembler = ({ unit, position, showDimensions, showNames, isSelected, label, activeTool, onCellClick, isNightMode, onUnitClick }) => {
   const currentWidth = getUnitWidth(unit.columns);
   const totalHeight = unit.blocks.reduce((acc, b) => acc + b.rows.reduce((r, h) => r + h + WOOD_THICK, 0) + WOOD_THICK, 0);
   const [hovered, setHover] = useState(false);
   useCursor(hovered && !activeTool);
   
+  const { scale, posY } = useSpring({
+    from: { scale: 0.9, posY: 0.2 }, 
+    to: { scale: 1, posY: 0 },
+    config: { mass: 2, tension: 50, friction: 40, clamp: true } 
+  });
+
   let curY = 0;
   return (
-    <group position={position} onPointerOver={(e) => { if (!activeTool) { e.stopPropagation(); setHover(true); } }} onPointerOut={(e) => { if (!activeTool) { e.stopPropagation(); setHover(false); } }}>
+    <animated.group 
+      position-x={position[0]}
+      position-z={position[2]}
+      position-y={posY}
+      scale={scale}
+      onClick={(e) => {
+        if (!activeTool) {
+          e.stopPropagation(); 
+          onUnitClick && onUnitClick();
+        }
+      }}
+      onPointerOver={(e) => { if (!activeTool) { e.stopPropagation(); setHover(true); } }} 
+      onPointerOut={(e) => { if (!activeTool) { e.stopPropagation(); setHover(false); } }}
+    >
       <mesh visible={false} position={[0, totalHeight/2, 0]}><boxGeometry args={[currentWidth + 0.2, totalHeight + 0.1, DEPTH + 0.2]} /></mesh>
       {unit.blocks.map(block => {
         const h = block.rows.reduce((a, b) => a + b + WOOD_THICK, 0) + WOOD_THICK;
@@ -91,7 +161,8 @@ export const UnitAssembler = ({ unit, position, showDimensions, showNames, isSel
         return el;
       })}
       <Dimensions width={currentWidth} height={totalHeight} visible={showDimensions && (hovered || isSelected)} />
+      {/* [수정] 태그 위치 바닥으로 원상복구 */}
       {showNames && !(showDimensions && (hovered || isSelected)) && <Html position={[0, -0.25, 0]} center zIndexRange={[60, 0]}><div style={styles.furnitureTag}>{label}</div></Html>}
-    </group>
+    </animated.group>
   );
 };

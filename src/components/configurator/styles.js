@@ -1,146 +1,81 @@
 export const styles = {
-  // 1. 전체 컨테이너: 화면 꽉 채우기
-  container: {
-    width: "100%",
-    height: "100vh", 
-    position: "relative",
-    overflow: "hidden",
-    background: "#f5f5f7", // 애플 기본 배경색
-  },
+  // ... (기존 유지) ...
+  container: { width: "100%", height: "100vh", position: "relative", overflow: "hidden", background: "#f0f0f2", fontFamily: "'SF Pro Display', -apple-system, sans-serif" },
+  canvasContainer: { position: "absolute", top: 0, left: 0, width: "100%", height: "100%", zIndex: 0 },
+  glassPanel: { background: "rgba(255, 255, 255, 0.9)", backdropFilter: "blur(40px) saturate(150%)", border: "1px solid rgba(255, 255, 255, 0.6)", boxShadow: "0 20px 40px rgba(0, 0, 0, 0.05), 0 1px 0 rgba(255,255,255,0.5) inset", borderRadius: "24px", color: "#000000", transition: "all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)" },
+  topBar: { position: "absolute", top: "24px", left: "24px", right: "24px", height: "72px", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 32px", zIndex: 20, pointerEvents: "none" },
+  brandingGroup: { pointerEvents: "auto", display: "flex", flexDirection: "column", gap: "2px" },
+  brandTitle: { fontSize: "16px", fontWeight: "900", letterSpacing: "0.05em", textTransform: "uppercase", color: "#000" },
+  brandSubtitle: { fontSize: "11px", fontWeight: "500", color: "#666", fontFamily: "'Space Mono', monospace" },
+  actionGroup: { pointerEvents: "auto", display: "flex", alignItems: "center", gap: "12px" },
+  priceTag: { fontFamily: "'Space Mono', monospace", fontSize: "18px", fontWeight: "700", color: "#000", background: "rgba(0,0,0,0.04)", padding: "10px 16px", borderRadius: "12px" },
 
-  // 2. 3D 캔버스: 배경으로 깔리기
-  canvasContainer: {
+  // --- Right HUD Wrapper ---
+  hudWrapper: {
     position: "absolute",
-    top: 0,
-    left: 0,
-    width: "100%",
-    height: "100%",
-    zIndex: 0, // 맨 뒤로 보냄
-  },
-
-  // 3. UI 패널 (오른쪽)
-  uiPanel: {
-    position: "absolute",
-    top: "24px",
-    right: "24px", 
-    width: "320px", 
-    background: "rgba(255, 255, 255, 0.7)", 
-    backdropFilter: "blur(20px)", // 유리 효과
-    borderRadius: "24px", 
-    border: "1px solid rgba(255, 255, 255, 0.5)", 
-    boxShadow: "0 20px 40px rgba(0,0,0,0.05)", 
-    zIndex: 10, 
+    top: "110px",
+    right: "24px",
     display: "flex",
     flexDirection: "column",
-    overflow: "hidden",
-    maxHeight: "calc(100vh - 48px)", 
-  },
-
-  // 4. 왼쪽 요약 패널
-  summaryPanel: {
-    position: "absolute",
-    top: "24px",
-    left: "24px",
-    width: "240px",
-    background: "rgba(255, 255, 255, 0.7)",
-    backdropFilter: "blur(20px)",
-    borderRadius: "20px",
-    border: "1px solid rgba(255, 255, 255, 0.5)",
-    boxShadow: "0 10px 30px rgba(0,0,0,0.05)",
+    alignItems: "flex-end", 
+    gap: "16px", 
     zIndex: 10,
-    padding: "16px",
-    transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)", 
-  },
-
- // 5. 하단 툴바
-  toolbarContainer: {
-    position: "absolute",
-    bottom: "100px", // Dock 위로 띄움
-    left: "50%",
-    transform: "translateX(-50%)",
-    zIndex: 20,
+    // 화면 밖으로 나가지 않도록
+    maxHeight: "calc(100vh - 140px)",
+    pointerEvents: "none", 
   },
   
-  toolbar: {
-    background: "rgba(255, 255, 255, 0.8)",
-    backdropFilter: "blur(25px) saturate(180%)", 
-    padding: "8px 12px",
-    borderRadius: "999px", 
-    boxShadow: "0 10px 40px rgba(0,0,0,0.12)",
+  // Main Panel
+  inspectorPanel: {
+    width: "340px",
+    padding: "24px",
     display: "flex",
-    alignItems: "center",
-    gap: "8px",
-    border: "1px solid rgba(255,255,255,0.4)",
+    flexDirection: "column",
+    gap: "20px",
+    overflowY: "auto",
+    overflowX: "visible",
+    scrollbarWidth: "none",
+    // 버튼을 뺀 순수 패널의 최대 높이
+    maxHeight: "calc(100vh - 220px)", 
+    pointerEvents: "auto",
   },
 
-  // --- 기존 스타일 유지 ---
-  header: { padding: "24px", borderBottom: "1px solid rgba(0,0,0,0.04)" },
-  titleGroup: { display: "flex", flexDirection: "column" },
-  title: { fontSize: "20px", fontWeight: "600", color: "#1d1d1f", letterSpacing: "-0.01em", margin: 0 },
-  price: { fontSize: "16px", fontWeight: "500", color: "#86868b", marginTop: "4px" },
-  
-  toggleGroup: { display: "flex", flexDirection: "column", gap: "6px", alignItems: "flex-end" },
-  toggleContainer: { display: "flex", alignItems: "center", gap: "10px" },
-  toggleLabelText: { fontSize: "12px", fontWeight: "600", color: "#86868b" },
-  
-  emptyState: { flexGrow: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px", textAlign: "center" },
-  emptyIcon: { width: "56px", height: "56px", background: "#fff", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "28px", color: "#d1d1d6", marginBottom: "20px", boxShadow: "0 4px 12px rgba(0,0,0,0.05)" },
-  emptyTitle: { fontSize: "20px", fontWeight: "700", color: "#1d1d1f", marginBottom: "10px" },
-  
-  scrollArea: { padding: "20px", overflowY: "auto", flexGrow: 1, display: "flex", flexDirection: "column", gap: "16px" },
-  cardOdd: { background: "rgba(255,255,255,0.5)", borderRadius: "16px", padding: "16px", marginBottom: "10px" },
-  cardEven: { background: "rgba(245,245,247,0.5)", borderRadius: "16px", padding: "16px", marginBottom: "10px" },
-  cardHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" },
-  unitBadge: { fontSize: "11px", fontWeight: "700", color: "#86868b", textTransform: "uppercase", letterSpacing: "0.05em" },
-  textBtn: { background: "none", border: "none", color: "#ff3b30", cursor: "pointer", fontSize: "12px", fontWeight: "600", padding: "4px 8px" },
-  
-  controlRow: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", columnGap: "16px" },
-  label: { fontSize: "13px", fontWeight: "700", color: "#1d1d1f" },
-  stepper: { display: "flex", alignItems: "center", background: "rgba(0,0,0,0.05)", borderRadius: "8px", padding: "3px" },
-  stepBtn: { width: "32px", height: "32px", border: "none", background: "#fff", borderRadius: "6px", boxShadow: "0 1px 2px rgba(0,0,0,0.06)", cursor: "pointer", fontWeight: "600", color: "#1d1d1f", fontSize: "14px", display: "flex", alignItems: "center", justifyContent: "center" },
-  stepVal: { padding: "0 12px", fontSize: "13px", fontWeight: "600", fontFeatureSettings: "'tnum'", minWidth: "32px", textAlign: "center" },
-  
-  blocksList: { display: "flex", flexDirection: "column", gap: "12px" },
-  blockItem: { background: "#fff", border: "1px solid rgba(0,0,0,0.06)", borderRadius: "8px", padding: "16px" },
-  blockHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "11px", fontWeight: "800", color: "#1d1d1f", marginBottom: "12px", textTransform: "uppercase", letterSpacing: "0.02em" },
-  iconBtn: { border: "none", background: "none", color: "#aeaeb2", cursor: "pointer", fontSize: "16px", padding: "2px", lineHeight: 1 },
-  
-  layerContainer: { marginBottom: "8px", minHeight: "32px" },
-  rowDisplay: { display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "13px", color: "#1d1d1f", paddingLeft: "10px", borderLeft: "3px solid var(--color-accent)", height: "32px" },
-  layerLabel: { fontWeight: "600", color: "#333" },
-  valuePill: { display: "flex", alignItems: "center", gap: "4px", background: "#fff", border: "1px solid #e5e5ea", borderRadius: "5px", padding: "4px 8px", fontSize: "12px", fontWeight: "600", color: "#1d1d1f", cursor: "pointer", boxShadow: "0 1px 2px rgba(0,0,0,0.03)" },
-  chevron: { fontSize: "8px", color: "#86868b", opacity: 0.7 },
-  
-  editGrid: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "4px", marginBottom: "4px" },
-  editBtn: { padding: "6px 0", fontSize: "11px", border: "1px solid #d2d2d7", borderRadius: "6px", background: "#fff", cursor: "pointer", fontWeight: "600", color: "#1d1d1f" },
-  rowRemoveBtn: { background: "none", border: "none", color: "#c7c7cc", width: "20px", height: "20px", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontSize: "16px", marginLeft: "4px" },
-  
-  addRowSection: { marginTop: "12px" },
-  layerAddLabel: { fontSize: "11px", color: "#8e8e93", marginBottom: "6px" },
-  optGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px", marginTop: "6px" },
-  optBtn: { padding: "8px", fontSize: "12px", background: "#fff", border: "1px solid #d1d1d6", borderRadius: "8px", cursor: "pointer", color: "#1d1d1f", fontWeight: "500" },
-  addSection: { marginTop: "16px", paddingTop: "12px", borderTop: "1px dashed #d1d1d6" },
-  
-  primaryBtn: { padding: "10px", fontSize: "12px", background: "#1d1d1f", color: "#fff", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "600" },
-  mainBtn: { padding: "16px", background: "var(--color-accent)", color: "#fff", border: "none", borderRadius: "14px", fontSize: "15px", fontWeight: "600", cursor: "pointer", boxShadow: "0 2px 8px rgba(0,102,204,0.2)", width: "100%", letterSpacing: "-0.01em" },
-  exportBtn: { marginTop: "16px", padding: "12px", fontSize: "13px", fontWeight: "600", color: "#0071e3", background: "rgba(0, 113, 227, 0.1)", borderRadius: "12px", border: "none", cursor: "pointer", transition: "all 0.2s", width: "100%" },
+  // Accessory List (Text)
+  accSection: { display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' },
+  accListHeader: { fontSize: '11px', fontWeight: '800', color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.05em' },
+  accListContainer: { display: 'flex', flexDirection: 'column', gap: '4px' },
+  accListItem: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px', fontWeight: '600', color: '#1d1d1f', padding: '8px 10px', background: '#f5f5f7', borderRadius: '8px' },
+  accListCount: { fontFamily: "'Space Mono', monospace", fontWeight: '700', color: '#0066cc' },
 
-  // Tool Buttons
-  toolGroup: { display: "flex", gap: "8px" },
-  toolbarLabel: { fontSize: "11px", fontWeight: "600", color: "#86868b", textTransform: "uppercase", letterSpacing: "0.05em" },
-  toolBtn: { padding: "10px 18px", borderRadius: "99px", fontSize: "13px", fontWeight: "500", color: "#1d1d1f", background: "transparent", border: "none", cursor: "pointer", transition: "all 0.2s ease", whiteSpace: "nowrap" },
-  doneBtn: { marginTop: "4px", border: "none", background: "#0066cc", color: "#fff", padding: "6px 20px", borderRadius: "99px", fontSize: "12px", fontWeight: "600", cursor: "pointer" },
-
-  // Summary
-  summaryHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" },
-  summaryTitle: { fontSize: "12px", fontWeight: "700", color: "#1d1d1f", margin: 0, textTransform: "uppercase", letterSpacing: "0.05em" },
-  summaryToggle: { fontSize: "10px", color: "#86868b" },
-  summaryContent: { marginTop: "12px", paddingTop: "12px", borderTop: "1px solid rgba(0,0,0,0.05)" },
-  summaryRow: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px", fontSize: "12px", color: "#424245", fontWeight: "500" },
-  summaryLabel: {},
-  summaryValue: { fontWeight: "700", color: "#1d1d1f", background: "rgba(0,0,0,0.05)", padding: "2px 8px", borderRadius: "6px", minWidth: "20px", textAlign: "center" },
-
-  // Elements
-  dimPill: { background: "rgba(255,255,255,0.95)", backdropFilter: "blur(8px)", padding: "6px 12px", borderRadius: "20px", fontSize: "11px", fontWeight: "700", color: "#1d1d1f", boxShadow: "0 4px 12px rgba(0,0,0,0.1), 0 0 0 1px rgba(0,0,0,0.05)", whiteSpace: "nowrap", letterSpacing: "0.02em" },
-  furnitureTag: { pointerEvents: "none", background: "#1d1d1f", color: "#fff", padding: "4px 10px", borderRadius: "999px", fontSize: "10px", fontWeight: "600", boxShadow: "0 3px 6px rgba(0,0,0,0.25)", whiteSpace: "nowrap" },
+  // ... (기존 유지) ...
+  panelHeader: { fontSize: "12px", fontWeight: "800", textTransform: "uppercase", letterSpacing: "0.05em", color: "#000", marginBottom: "8px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "2px solid #000", paddingBottom: "12px" },
+  controlRow: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" },
+  controlLabel: { fontSize: "13px", fontWeight: "700", color: "#000" },
+  hudBtn: { background: "#fff", border: "1px solid #e5e5ea", borderRadius: "8px", padding: "8px 12px", fontSize: "12px", fontWeight: "600", color: "#000", cursor: "pointer", transition: "all 0.2s", display: "flex", alignItems: "center", justifyContent: "center", minWidth: "36px", boxShadow: "0 2px 4px rgba(0,0,0,0.02)" },
+  hudBtnActive: { background: "#000", color: "#fff", borderColor: "#000", boxShadow: "0 4px 12px rgba(0,0,0,0.2)" },
+  stackContainer: { display: 'flex', flexDirection: 'column', gap: '4px', padding: '16px', background: '#f5f5f7', borderRadius: '16px', marginTop: '8px' },
+  stackBlock: { width: '100%', background: '#fff', border: '1px solid #d1d1d6', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', cursor: 'pointer', transition: 'all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1)', position: 'relative', overflow: 'hidden' },
+  stackLabel: { fontSize: '12px', fontWeight: '800', color: '#86868b', zIndex: 1 },
+  stackValue: { fontSize: '15px', fontFamily: "'Space Mono', monospace", fontWeight: '700', color: '#000', zIndex: 1, display: 'flex', alignItems: 'center', gap: '8px' },
+  editGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', background: '#fff', padding: '8px', borderRadius: '8px', border: '1px solid #000', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' },
+  editOptionBtn: { border: '1px solid #e5e5ea', background: '#fff', color: '#000', fontSize: '13px', padding: '12px 0', cursor: 'pointer', fontWeight: 600, borderRadius: '6px', transition: 'all 0.1s' },
+  editOptionBtnActive: { background: '#000', color: '#fff', borderColor: '#000' },
+  deleteBtn: { width: "24px", height: "24px", borderRadius: "50%", background: "#ff3b30", color: "white", border: "none", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "all 0.2s", boxShadow: "0 2px 6px rgba(255, 59, 48, 0.3)" },
+  
+  // Add Buttons
+  addUnitBlockBtn: { width: "340px", padding: "18px", background: "#fff", color: "#0066cc", borderRadius: "20px", border: "2px dashed #0066cc", fontSize: "14px", fontWeight: "800", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", cursor: "pointer", boxShadow: "0 10px 30px rgba(0, 102, 204, 0.1)", transition: "all 0.2s ease", pointerEvents: "auto" },
+  addUnitFloatingLeftBtn: { position: "absolute", right: "380px", bottom: "40px", width: "60px", height: "60px", borderRadius: "50%", background: "#0066cc", color: "white", border: "none", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 10px 30px rgba(0, 102, 204, 0.3)", zIndex: 40, cursor: "pointer", transition: "all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)", pointerEvents: "auto" },
+  
+  bottomDock: { position: "absolute", bottom: "110px", left: "50%", transform: "translateX(-50%)", zIndex: 30, display: "flex", alignItems: "center", gap: "12px", padding: "12px 24px", borderRadius: "24px", background: "rgba(255, 255, 255, 0.95)", boxShadow: "0 10px 40px rgba(0,0,0,0.1)" },
+  toolIconBtn: { width: "60px", height: "60px", borderRadius: "18px", border: "1px solid rgba(0,0,0,0.08)", background: "rgba(255,255,255,0.5)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "2px", padding: 0, cursor: "pointer", transition: "all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1)", boxShadow: "0 2px 8px rgba(0,0,0,0.02)", position: 'relative' },
+  toolIconActive: { background: "#1d1d1f", color: "#fff", border: "1px solid #1d1d1f", transform: "scale(1.1) translateY(-6px)", boxShadow: "0 10px 20px rgba(0,0,0,0.2)" },
+  toolLabel: { fontSize: "11px", fontWeight: "800", textTransform: "uppercase", lineHeight: "1", marginTop: "0px" },
+  viewHintRing: { position: 'absolute', top: -4, left: -4, right: -4, bottom: -4, borderRadius: '24px', border: '2px dashed #1d1d1f', opacity: 0.3, pointerEvents: 'none' },
+  emptyState: { position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", textAlign: "center", pointerEvents: "none" },
+  emptyTitle: { fontSize: "32px", fontWeight: "900", color: "rgba(0,0,0,0.8)", letterSpacing: "-0.02em", marginBottom: "24px" },
+  addUnitLargeBtn: { pointerEvents: "auto", background: "#000", color: "white", border: "none", padding: "18px 36px", borderRadius: "100px", fontSize: "16px", fontWeight: "700", cursor: "pointer", boxShadow: "0 10px 30px rgba(0, 0, 0, 0.2)", transition: "transform 0.2s", display: 'flex', alignItems: 'center', gap: '8px' },
+  activeIndicator: { display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', fontWeight: '700', color: '#000', letterSpacing: '0.05em' },
+  statusDot: { width: '8px', height: '8px', borderRadius: '50%', background: '#34c759', boxShadow: '0 0 8px rgba(52, 199, 89, 0.6)' },
+  dimPill: { background: "#000", padding: "6px 10px", borderRadius: "6px", fontSize: "11px", fontWeight: "700", fontFamily: "'Space Mono', monospace", color: "#fff", boxShadow: "0 4px 12px rgba(0,0,0,0.3)", whiteSpace: "nowrap", letterSpacing: "0.05em" },
+  furnitureTag: { pointerEvents: "none", background: "#fff", padding: "6px 12px", borderRadius: "999px", fontSize: "11px", fontWeight: "800", color: "#000", boxShadow: "0 4px 12px rgba(0,0,0,0.15)", whiteSpace: "nowrap", textTransform: "uppercase", letterSpacing: "0.05em" },
 };
