@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Link, useLocation } from 'react-router-dom'
-import { Home, Box, Layers, Users, ShoppingBag } from 'lucide-react'
+// [FIX] Wallet(지갑) 아이콘 임포트 -> "지불/결제 행위"를 가장 잘 나타냄
+import { Home, Box, Layers, Users, Wallet } from 'lucide-react'
 import { useStore } from '../store/useStore'
 
 const PAGE_COLORS = {
@@ -22,26 +23,58 @@ export default function GlobalDock() {
   const [isHovered, setIsHovered] = useState(false)
   const [hoveredTab, setHoveredTab] = useState(null)
   const location = useLocation()
-  const { toggleCart, cart, setDockHovered } = useStore()
+  
+  const { toggleCart, cart, setIsDockHovered, isIntroPlaying, activeIntroTab } = useStore()
   
   const currentColor = PAGE_COLORS[location.pathname] || '#000000';
   const cartCount = cart.reduce((acc, item) => acc + item.quantity, 0);
 
+  const isExpanded = isHovered || isIntroPlaying;
+  const currentTooltipTab = hoveredTab || activeIntroTab;
+
   useEffect(() => {
-    setDockHovered(isHovered);
-  }, [isHovered, setDockHovered]);
+    if (setIsDockHovered) {
+      setIsDockHovered(isExpanded);
+    }
+  }, [isExpanded, setIsDockHovered]);
+
+  const Tooltip = ({ label }) => (
+    <motion.div
+      initial={{ opacity: 0, y: 0, scale: 0.8 }}
+      animate={{ opacity: 1, y: -60, scale: 1 }}
+      exit={{ opacity: 0, y: 0, scale: 0.8 }}
+      transition={{ type: "spring", stiffness: 500, damping: 25 }}
+      className="absolute z-50 pointer-events-none"
+      style={{ left: '50%', x: '-50%' }}
+    >
+      <div 
+        className="relative px-3 py-1.5 rounded-lg shadow-xl whitespace-nowrap"
+        style={{ 
+          backgroundColor: "rgba(29, 29, 31, 0.95)",
+          backdropFilter: "blur(10px)",
+          border: "1px solid rgba(255,255,255,0.1)"
+        }}
+      >
+        <span className="text-[10px] font-bold text-white tracking-wider uppercase">{label}</span>
+        <div 
+          className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 rotate-45" 
+          style={{ backgroundColor: "rgba(29, 29, 31, 0.95)" }}
+        />
+      </div>
+    </motion.div>
+  );
 
   return (
-    <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] flex flex-col items-center">
+    <div className="fixed bottom-[45px] left-1/2 -translate-x-1/2 z-[100] flex flex-col items-center">
       <motion.div
         layout
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => { setIsHovered(false); setHoveredTab(null) }}
         initial={{ width: 140, height: 60, borderRadius: 32 }}
         animate={{
-          width: isHovered ? 'auto' : 140,
-          height: isHovered ? 80 : 60,
-          borderRadius: isHovered ? 40 : 32,
+          width: isExpanded ? 'auto' : 140,
+          height: isExpanded ? 80 : 60,
+          borderRadius: isExpanded ? 40 : 32,
         }}
         transition={{ type: "spring", stiffness: 400, damping: 25, mass: 1 }}
         style={{
@@ -55,9 +88,8 @@ export default function GlobalDock() {
           position: "relative"
         }}
       >
-        {/* [FINAL FIX] Perfect Loop Orbit Line */}
         <AnimatePresence>
-          {!isHovered && (
+          {!isExpanded && (
             <svg 
               className="absolute inset-0 pointer-events-none" 
               style={{ width: '100%', height: '100%', overflow: 'visible' }}
@@ -70,19 +102,14 @@ export default function GlobalDock() {
                 strokeWidth="1.5"
                 strokeLinecap="round"
                 strokeOpacity={0.8}
-                
-                // [핵심] 0.25(선) + 0.75(공백) = 1.0 (정확한 비율 매칭)
                 pathLength={1}
                 strokeDasharray="0.25 0.75"
-                
-                // 0 -> -1로 이동 (시계 방향 무한 회전)
                 animate={{ strokeDashoffset: [0, -1] }}
-                
                 transition={{ 
                   duration: 5, 
                   repeat: Infinity, 
                   ease: "linear",
-                  repeatType: "loop" // 끊김 방지
+                  repeatType: "loop" 
                 }}
               />
             </svg>
@@ -90,7 +117,7 @@ export default function GlobalDock() {
         </AnimatePresence>
 
         <AnimatePresence mode="popLayout">
-          {!isHovered ? (
+          {!isExpanded ? (
             <motion.div
               key="label"
               initial={{ opacity: 0, scale: 0.8, filter: 'blur(4px)' }}
@@ -118,30 +145,8 @@ export default function GlobalDock() {
                 return (
                   <div key={item.id} className="relative flex flex-col items-center group">
                     <AnimatePresence>
-                      {hoveredTab === item.id && (
-                        <motion.div
-                          initial={{ opacity: 0, y: 0, scale: 0.8 }}
-                          animate={{ opacity: 1, y: -60, scale: 1 }}
-                          exit={{ opacity: 0, y: 0, scale: 0.8 }}
-                          transition={{ type: "spring", stiffness: 500, damping: 25 }}
-                          className="absolute z-50 pointer-events-none"
-                          style={{ left: '50%', x: '-50%' }}
-                        >
-                          <div 
-                            className="relative px-3 py-1.5 rounded-lg shadow-xl whitespace-nowrap"
-                            style={{ 
-                              backgroundColor: "rgba(29, 29, 31, 0.95)",
-                              backdropFilter: "blur(10px)",
-                              border: "1px solid rgba(255,255,255,0.1)"
-                            }}
-                          >
-                            <span className="text-[10px] font-bold text-white tracking-wider uppercase">{item.label}</span>
-                            <div 
-                              className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 rotate-45" 
-                              style={{ backgroundColor: "rgba(29, 29, 31, 0.95)" }}
-                            />
-                          </div>
-                        </motion.div>
+                      {currentTooltipTab === item.id && (
+                        <Tooltip label={item.label} />
                       )}
                     </AnimatePresence>
                     <Link to={item.path} onMouseEnter={() => setHoveredTab(item.id)} onMouseLeave={() => setHoveredTab(null)}>
@@ -160,16 +165,30 @@ export default function GlobalDock() {
 
               <div className="w-px h-8 bg-gray-200 mx-2" />
 
-              <motion.button 
-                whileHover={{ scale: 1.15 }} 
-                onClick={toggleCart} 
-                className="p-3.5 rounded-full bg-gray-100 text-gray-600 hover:bg-white hover:text-black relative transition-all hover:shadow-md"
-              >
-                <ShoppingBag size={20} strokeWidth={2} />
-                {cartCount > 0 && (
-                  <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white shadow-sm" />
-                )}
-              </motion.button>
+              {/* [FIX] BUY 버튼: Wallet(지갑) 아이콘 사용 */}
+              <div className="relative flex flex-col items-center group">
+                <AnimatePresence>
+                  {currentTooltipTab === 'buy' && (
+                    <Tooltip label="BUY" />
+                  )}
+                </AnimatePresence>
+                
+                <motion.button 
+                  whileHover={{ scale: 1.15 }} 
+                  onClick={toggleCart}
+                  onMouseEnter={() => setHoveredTab('buy')}
+                  onMouseLeave={() => setHoveredTab(null)}
+                  // [핵심 디자인] 초록색 배경 + 지갑 아이콘 = 확실한 결제/구매 느낌
+                  className="p-3.5 rounded-full bg-[#16a34a] text-white relative transition-all hover:bg-[#15803d] hover:shadow-lg shadow-md"
+                >
+                  <Wallet size={20} strokeWidth={2} />
+                  
+                  {cartCount > 0 && (
+                    <span className="absolute top-2.5 right-2.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-[#16a34a] shadow-sm" />
+                  )}
+                </motion.button>
+              </div>
+
             </motion.div>
           )}
         </AnimatePresence>

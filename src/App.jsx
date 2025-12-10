@@ -6,17 +6,20 @@ import { View, Preload, AdaptiveDpr, AdaptiveEvents } from '@react-three/drei'
 // Pages
 import Showroom from './pages/Showroom'
 import Configurator from './pages/Configurator'
-// import Space from './pages/Space' (추후 추가)
+// [NEW] Zone 3: Space 페이지 임포트
+import Space from './pages/Space'
 
 // Components (UI)
 import GlobalDock from './components/GlobalDock'
 import CartDrawer from './components/CartDrawer'
-import CustomCursor from './components/CustomCursor'
 import DetailModal from './components/DetailModal'
 import AccessoryGuideModal from './components/AccessoryGuideModal'
-import CheckoutModal from './components/CheckoutModal' // [NEW] 체크아웃 추가
+import CheckoutModal from './components/CheckoutModal'
+import CustomCursor from './components/CustomCursor'
 
-// 씬 전환 컨트롤러
+// [FIX] 페이지 트랜지션 컴포넌트 임포트
+import PageTransition from './components/PageTransition'
+
 function SceneController() {
   const location = useLocation()
   return null
@@ -28,14 +31,18 @@ export default function App() {
   return (
     <BrowserRouter>
       {/* [ODT Universe Container] */}
-      <div ref={containerRef} className="relative w-full min-h-screen bg-white text-black overflow-x-hidden selection:bg-black selection:text-white">
+      <div ref={containerRef} className="relative w-full min-h-screen bg-[#f5f5f7] text-black overflow-x-hidden selection:bg-black selection:text-white">
         
+        {/* [FIX] Page Transition Overlay (Highest Priority) */}
+        {/* 화면 전환 시 가장 위에서 모든 것을 덮어주는 시네마틱 커튼입니다. */}
+        <PageTransition />
+
         {/* --- Global UI Layer (Z-Index High) --- */}
         <GlobalDock />
         <CartDrawer />
         <DetailModal />
         <AccessoryGuideModal />
-        <CheckoutModal /> {/* [NEW] 여기에 배치 */}
+        <CheckoutModal />
         <CustomCursor />
 
         {/* --- Content Layer (DOM Pages) --- */}
@@ -43,7 +50,8 @@ export default function App() {
           <Routes>
             <Route path="/" element={<Showroom />} />
             <Route path="/configurator" element={<Configurator />} />
-            {/* <Route path="/space" element={<Space />} /> */}
+            {/* [NEW] Zone 3: ODT VISION (Space) 연결 */}
+            <Route path="/space" element={<Space />} />
             <Route path="/vision" element={<div className="h-screen flex items-center justify-center text-2xl font-light">VISION (Coming Soon)</div>} />
           </Routes>
         </div>
@@ -52,21 +60,17 @@ export default function App() {
         <Canvas
           className="fixed inset-0 pointer-events-none"
           style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: 0 }}
-          eventSource={containerRef} // [중요] HTML 요소 위에서도 3D 조작 가능하게 함
+          eventSource={containerRef}
           shadows
           dpr={[1, 2]}
-          gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
+          // [CRITICAL FIX] preserveDrawingBuffer: true -> 스크린샷 캡처를 위해 필수!
+          gl={{ antialias: true, alpha: true, powerPreference: "high-performance", preserveDrawingBuffer: true }}
           camera={{ position: [0, 0, 10], fov: 35 }}
         >
-          {/* 각 페이지의 View 컴포넌트들이 렌더링되는 포트 */}
           <View.Port />
-          
           <SceneController />
-          
-          {/* 성능 최적화 */}
           <AdaptiveDpr pixelated />
           <AdaptiveEvents />
-          
           <Suspense fallback={null}>
             <Preload all />
           </Suspense>

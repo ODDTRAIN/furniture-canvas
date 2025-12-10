@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import * as THREE from "three";
 import { Html, useCursor } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber"; 
@@ -14,8 +14,8 @@ import {
   WoodMaterialVertical, UnitLeg 
 } from "./ConfigAssets";
 
-// --- Helper ---
-const getDeterministicRandom = (seedStr) => {
+// [FIX] export 추가: 다른 파일에서 사용할 수 있도록 공개
+export const getDeterministicRandom = (seedStr) => {
   let hash = 0;
   for (let i = 0; i < seedStr.length; i++) {
     hash = seedStr.charCodeAt(i) + ((hash << 5) - hash);
@@ -25,17 +25,28 @@ const getDeterministicRandom = (seedStr) => {
 };
 
 export const GlobalSelectionMarker = ({ x, y, visible }) => {
-  const meshRef = useRef();
+  const lastPos = useRef({ x: x, y: y });
+
+  if (visible) {
+    lastPos.current = { x, y };
+  }
+
   const { position, scale } = useSpring({
-    position: [x, y + 0.18, 0],
-    scale: visible ? 1 : 0,
-    config: { mass: 1, tension: 170, friction: 26 }
+    position: [
+      visible ? x : lastPos.current.x, 
+      (visible ? y : lastPos.current.y) + 0.18, 
+      0
+    ],
+    scale: visible ? 1 : 0, 
+    config: { mass: 1, tension: 280, friction: 24 }
   });
+
+  const meshRef = useRef();
 
   useFrame((state) => {
     if (meshRef.current) {
       const t = state.clock.getElapsedTime();
-      meshRef.current.position.y = Math.sin(t * 2) * 0.02; 
+      meshRef.current.position.y = Math.sin(t * 2.5) * 0.025; 
       meshRef.current.rotation.x = t * 0.2;
       meshRef.current.rotation.z = t * 0.15;
     }
@@ -43,7 +54,7 @@ export const GlobalSelectionMarker = ({ x, y, visible }) => {
 
   return (
     <animated.group position={position} scale={scale}>
-      <mesh ref={meshRef} castShadow>
+      <mesh ref={meshRef} castShadow> 
         <sphereGeometry args={[0.02, 64, 64]} /> 
         <meshPhysicalMaterial color="#000000" metalness={0.9} roughness={0.1} clearcoat={1.0} clearcoatRoughness={0.1} envMapIntensity={1.5} />
       </mesh>
@@ -51,7 +62,8 @@ export const GlobalSelectionMarker = ({ x, y, visible }) => {
   );
 };
 
-const CellSpace = ({ width, height, position, accessoryData, activeTool, isValid, onInteract, isHighlighted }) => {
+// [FIX] export 추가
+export const CellSpace = ({ width, height, position, accessoryData, activeTool, isValid, onInteract, isHighlighted }) => {
   const [hovered, setHover] = useState(false);
   useCursor(hovered && activeTool && isValid);
   
@@ -85,7 +97,6 @@ const CellSpace = ({ width, height, position, accessoryData, activeTool, isValid
         <planeGeometry args={[width - 0.02, height - 0.02]} />
         <meshBasicMaterial color={guideColor} transparent opacity={guideOpacity} side={THREE.DoubleSide} depthWrite={false} />
       </mesh>
-      {/* 악세서리에도 하이라이트 전달 */}
       {accessoryData?.type === "door-double" && <AccessoryDoubleDoor width={width} height={height} isHighlighted={isHighlighted} />}
       {accessoryData?.type === "door-flip" && <AccessoryFlipDoor width={width} height={height} isHighlighted={isHighlighted} />}
       {accessoryData?.type === "speaker" && <AccessorySpeaker width={width} height={height} isHighlighted={isHighlighted} />}
@@ -100,13 +111,13 @@ const CellSpace = ({ width, height, position, accessoryData, activeTool, isValid
   );
 };
 
-const BlockAssembler = ({ width, rows, columns, unitId, blockId, accessories, activeTool, onCellClick, isNightMode, isBase, isHighlighted, hoveredRowId }) => {
+// [FIX] export 추가
+export const BlockAssembler = ({ width, rows, columns, unitId, blockId, accessories, activeTool, onCellClick, isNightMode, isBase, isHighlighted, hoveredRowId }) => {
   let currentY = isBase ? LEG_HEIGHT : 0; 
   const elements = [];
   
   const totalH = rows.reduce((acc, h) => acc + (h||0), 0) + (rows.length + 1) * WOOD_THICK;
   
-  // [1. Back Panel] - 스택 전체 하이라이트만 적용
   const backPanelSeed = getDeterministicRandom(`${unitId}-${blockId}-back`);
   elements.push(
     <mesh key="back" position={[0, currentY + totalH/2 - WOOD_THICK/2, -DEPTH/2]} castShadow receiveShadow>
@@ -115,12 +126,10 @@ const BlockAssembler = ({ width, rows, columns, unitId, blockId, accessories, ac
     </mesh>
   );
 
-  // [2. Base] - 스택 전체 하이라이트 적용
   elements.push(<WoodShelf key="base" width={width} position={[0, currentY + WOOD_THICK/2, 0]} seed={getDeterministicRandom(`${unitId}-${blockId}-base`)} isHighlighted={isHighlighted ? 'stack' : null} />);
   
   const nodeXArr = Array.from({ length: columns + 1 }, (_, i) => -width/2 + DICE_SIZE/2 + i * COLUMN_PITCH);
 
-  // [3. Legs] - 스택 전체 하이라이트 적용
   if (isBase) {
     nodeXArr.forEach((x, i) => {
       elements.push(<UnitLeg key={`leg-f-${i}`} position={[x, LEG_HEIGHT/2, DEPTH/2 - DICE_SIZE/2]} isHighlighted={isHighlighted ? 'stack' : null} />);
@@ -130,12 +139,10 @@ const BlockAssembler = ({ width, rows, columns, unitId, blockId, accessories, ac
 
   currentY += WOOD_THICK;
 
-  // [4. Rows]
   rows.forEach((h, rIdx) => {
     if (!h) return;
     const isRowValid = activeTool ? isHeightValid(activeTool, h) : false;
     
-    // [핵심 로직] Row가 선택되었으면 'row' (강함), 스택만 선택되었으면 'stack' (약함)
     const rowKey = `${unitId}-${blockId}-${rIdx}`;
     const isRowHighlighted = rowKey === hoveredRowId;
     const effectiveHighlight = isRowHighlighted ? 'row' : (isHighlighted ? 'stack' : null);
@@ -175,13 +182,13 @@ const BlockAssembler = ({ width, rows, columns, unitId, blockId, accessories, ac
       </group>
     );
     currentY += h;
-    // [Top Shelf] 해당 Row에 포함된 상판
     elements.push(<WoodShelf key={`top-${rIdx}`} width={width} position={[0, currentY + WOOD_THICK/2, 0]} seed={getDeterministicRandom(`${unitId}-${blockId}-${rIdx}-top`)} isHighlighted={effectiveHighlight} />);
     currentY += WOOD_THICK;
   });
   return <group>{elements}</group>;
 };
 
+// [FIX] export 추가
 export const UnitAssembler = ({ unit, position, showDimensions, showNames, isSelected, label, activeTool, onCellClick, isNightMode, onUnitClick, hoveredBlockId, hoveredRowId }) => {
   const currentWidth = getUnitWidth(unit.columns);
   const totalHeight = unit.blocks.reduce((acc, b) => acc + b.rows.reduce((r, h) => r + h + WOOD_THICK, 0) + WOOD_THICK, 0) + LEG_HEIGHT;
@@ -189,19 +196,12 @@ export const UnitAssembler = ({ unit, position, showDimensions, showNames, isSel
   const [hovered, setHover] = useState(false);
   useCursor(hovered && !activeTool);
   
-  const { scale, posY } = useSpring({
-    from: { scale: 0.9, posY: 0.2 }, 
-    to: { scale: 1, posY: 0 },
-    config: { mass: 2, tension: 50, friction: 40, clamp: true } 
-  });
-
   let curY = 0;
   return (
-    <animated.group 
+    <group 
       position-x={position[0]}
       position-z={position[2]}
-      position-y={posY}
-      scale={scale}
+      position-y={0} 
       onClick={(e) => {
         if (!activeTool) {
           e.stopPropagation(); 
@@ -221,7 +221,11 @@ export const UnitAssembler = ({ unit, position, showDimensions, showNames, isSel
         } 
       }}
     >
-      <mesh visible={false} position={[0, totalHeight/2, 0]}><boxGeometry args={[currentWidth + 0.1, totalHeight, DEPTH + 0.1]} /></mesh>
+      <mesh position={[0, totalHeight/2, 0]}>
+        <boxGeometry args={[currentWidth + 0.1, totalHeight, DEPTH + 0.1]} />
+        <meshBasicMaterial transparent opacity={0} />
+      </mesh>
+
       {unit.blocks.map((block, index) => {
         const isBase = index === 0;
         const isHighlighted = block.id === hoveredBlockId;
@@ -243,7 +247,7 @@ export const UnitAssembler = ({ unit, position, showDimensions, showNames, isSel
               isNightMode={isNightMode} 
               isBase={isBase} 
               isHighlighted={isHighlighted}
-              hoveredRowId={hoveredRowId} // Row ID 전달
+              hoveredRowId={hoveredRowId} 
             />
           </group>
         );
@@ -252,6 +256,6 @@ export const UnitAssembler = ({ unit, position, showDimensions, showNames, isSel
       })}
       <Dimensions width={currentWidth} height={totalHeight} visible={showDimensions && (hovered || isSelected)} />
       {showNames && !(showDimensions && (hovered || isSelected)) && <Html position={[0, -0.25, 0]} center zIndexRange={[60, 0]}><div style={styles.furnitureTag}>{label}</div></Html>}
-    </animated.group>
+    </group>
   );
 };

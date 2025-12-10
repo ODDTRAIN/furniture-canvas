@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, ChevronLeft, ChevronRight, ShoppingBag, Plus, Minus, Trash2, Check, Box } from 'lucide-react'
+import { X, ChevronLeft, ChevronRight, ShoppingBag, Plus, Minus, Trash2, Check, Box, PenTool, ArrowRight } from 'lucide-react'
 import { useStore } from '../store/useStore'
+import { useNavigate } from 'react-router-dom'
 
-// ASSETS 데이터
+// --- ASSETS DATA ---
 const ASSETS = {
   images: {
     product: [
@@ -23,6 +24,7 @@ const ASSETS = {
   }
 }
 
+// --- ANIMATION VARIANTS ---
 const slideVariants = {
   enter: (direction) => ({ x: direction > 0 ? 1000 : -1000, opacity: 0 }),
   center: { zIndex: 1, x: 0, opacity: 1 },
@@ -36,7 +38,8 @@ const popoverVariants = {
 }
 
 export default function DetailModal() {
-  const { activeItem, setActiveItem, addToCart, addToInventory, inventory, removeFromInventory } = useStore()
+  const { activeItem, setActiveItem, addToCart, addToInventory, inventory, removeFromInventory, setIntroSignal } = useStore()
+  const navigate = useNavigate()
   
   const [[page, direction], setPage] = useState([0, 0])
   const [galleryMode, setGalleryMode] = useState('product')
@@ -47,6 +50,7 @@ export default function DetailModal() {
   const [saveFeedback, setSaveFeedback] = useState(false)
 
   const isSavedInInventory = activeItem ? inventory.some(i => i.id === activeItem.id) : false
+  const isStorage = activeItem?.category === 'Storage';
 
   const currentImages = ASSETS.images[galleryMode]
   const imageIndex = ((page % currentImages.length) + currentImages.length) % currentImages.length
@@ -74,16 +78,36 @@ export default function DetailModal() {
       quantity: accessoryCount
     } : null
     addToCart(activeItem, 1, options)
+    setActiveItem(null)
   }
 
+  // [CORE FIX] Zone 1 -> Zone 3 에셋 저장 핸들러
   const handleToggleAsset = () => {
     if (isSavedInInventory) {
       removeFromInventory(activeItem.id)
     } else {
-      addToInventory(activeItem)
+      addToInventory({
+        ...activeItem,
+        type: 'product', 
+        
+        // [CRITICAL FIX] 여기가 비어있어서 투명 박스가 나왔던 겁니다!
+        // 1. activeItem에 modelUrl이 있으면 그걸 씀
+        // 2. 없으면 '/models/chair.glb' (테스트용 파일)를 강제로 사용
+        modelUrl: activeItem.modelUrl || '/models/chair.glb', 
+        
+        // 추가: 썸네일 이미지도 확실하게 넘김
+        image: activeItem.image
+      })
+      
       setSaveFeedback(true)
       setTimeout(() => setSaveFeedback(false), 1500)
     }
+  }
+
+  const handleGoToConfigurator = () => {
+    setActiveItem(null) 
+    setIntroSignal(true); 
+    navigate('/configurator');
   }
 
   if (!activeItem) return null
@@ -92,6 +116,7 @@ export default function DetailModal() {
     <AnimatePresence>
       {activeItem && (
         <>
+          {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -100,6 +125,7 @@ export default function DetailModal() {
             className="fixed inset-0 z-40 bg-white/40 backdrop-blur-lg"
           />
 
+          {/* Modal Container */}
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -115,7 +141,7 @@ export default function DetailModal() {
                 onMouseEnter={() => setIsHovered(true)}
                 onMouseLeave={() => setIsHovered(false)}
               >
-                 {/* Top Toggle */}
+                 {/* Gallery Toggle */}
                  <div className="absolute top-6 left-0 right-0 flex justify-center z-20">
                     <div className="bg-gray-200/80 backdrop-blur-md p-1 rounded-full flex gap-1">
                       {['product', 'lifestyle'].map((mode) => (
@@ -132,7 +158,7 @@ export default function DetailModal() {
                     </div>
                   </div>
 
-                  {/* Image Slider */}
+                  {/* Main Image Slider */}
                   <AnimatePresence initial={false} custom={direction} mode="popLayout">
                     <motion.img
                       key={`${galleryMode}-${page}`}
@@ -183,7 +209,7 @@ export default function DetailModal() {
                     )}
                   </AnimatePresence>
 
-                  {/* [NEW STANDARD] Dynamic Expanding Pill Indicator */}
+                  {/* Pagination Dots */}
                   <div className="absolute bottom-6 left-0 right-0 flex justify-center z-20 pointer-events-none">
                     <div className="flex items-center gap-2 p-2 bg-black/20 backdrop-blur-xl rounded-full">
                       {currentImages.map((_, idx) => {
@@ -195,10 +221,10 @@ export default function DetailModal() {
                               const diff = idx - imageIndex;
                               if (diff !== 0) paginate(diff);
                             }}
-                            layout // [핵심] 너비 변화 애니메이션 활성화
+                            layout
                             initial={false}
                             animate={{
-                              width: isActive ? 24 : 6, // 활성: 긴 알약(24px), 비활성: 작은 점(6px)
+                              width: isActive ? 24 : 6,
                               opacity: isActive ? 1 : 0.5,
                               backgroundColor: "#ffffff"
                             }}
@@ -215,7 +241,7 @@ export default function DetailModal() {
                   </div>
               </div>
 
-              {/* --- Right Column (기존 유지) --- */}
+              {/* --- Right Column: Details --- */}
               <div className="w-full md:w-2/5 h-1/2 md:h-full flex flex-col bg-white relative">
                 <div className="absolute top-6 right-6 z-10">
                   <button onClick={() => setActiveItem(null)} className="p-2 rounded-full bg-gray-50 hover:bg-gray-100 transition-colors text-gray-500 hover:text-black">
@@ -242,6 +268,7 @@ export default function DetailModal() {
                     <p>{activeItem.description || "Designed for the modern habitat, this piece balances structural integrity with visual weightlessness."}</p>
                   </div>
                   
+                  {/* Accessory Section */}
                   <div className="mt-10 mb-20 relative">
                     <p className="text-xs font-bold tracking-widest uppercase text-gray-400 mb-4">Customization</p>
                     {isAccessoryAdded ? (
@@ -299,43 +326,62 @@ export default function DetailModal() {
                   </div>
                 </div>
 
-                <div className="p-8 border-t border-gray-100 bg-white z-10 flex gap-3">
-                  <motion.button
-                    onClick={handleToggleAsset}
-                    animate={{
-                      backgroundColor: saveFeedback ? '#000000' : (isSavedInInventory ? '#f3f4f6' : '#ffffff'),
-                      color: saveFeedback ? '#ffffff' : (isSavedInInventory ? '#000000' : '#4b5563'),
-                      borderColor: saveFeedback ? '#000000' : '#e5e7eb'
-                    }}
-                    transition={{ duration: 0.2 }}
-                    className={`
-                      flex items-center justify-center gap-2 px-6 py-4 rounded-full font-medium transition-all active:scale-95 border border-gray-200
-                      hover:border-gray-400 hover:text-black
-                    `}
-                    title="Save to ODT SPACE Assets"
-                  >
-                    {saveFeedback ? (
-                      <>
-                        <Check size={20} />
-                        <span className="text-sm whitespace-nowrap">Saved!</span>
-                      </>
-                    ) : (
-                      <>
-                        <Box size={20} className={isSavedInInventory ? "fill-black" : ""} />
-                        <span className="text-sm whitespace-nowrap">
-                          {isSavedInInventory ? "Saved" : "Save Asset"}
-                        </span>
-                      </>
-                    )}
-                  </motion.button>
+                {/* Bottom Action Bar */}
+                <div className="p-8 border-t border-gray-100 bg-white z-10 flex flex-col gap-3">
+                  
+                  {isStorage && (
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={handleGoToConfigurator}
+                      className="w-full py-4 bg-[#F5F5F7] text-[#0066cc] rounded-full font-bold text-sm flex items-center justify-center gap-2 hover:bg-[#E5E5EA] transition-colors"
+                    >
+                      <PenTool size={18} />
+                      CUSTOM FURNITURE
+                      <ArrowRight size={16} />
+                    </motion.button>
+                  )}
 
-                  <button 
-                    onClick={handleAddToCart}
-                    className="flex-1 bg-black text-white py-4 rounded-full font-medium tracking-wide hover:bg-gray-800 transition-transform active:scale-95 flex items-center justify-center gap-2 shadow-xl shadow-black/10"
-                  >
-                    <ShoppingBag size={18} />
-                    <span>Add to Cart &mdash; ${finalPrice.toLocaleString()}</span>
-                  </button>
+                  <div className="flex gap-3 w-full">
+                    {/* Save Asset Button */}
+                    <motion.button
+                      onClick={handleToggleAsset}
+                      animate={{
+                        backgroundColor: saveFeedback ? '#000000' : (isSavedInInventory ? '#f3f4f6' : '#ffffff'),
+                        color: saveFeedback ? '#ffffff' : (isSavedInInventory ? '#000000' : '#4b5563'),
+                        borderColor: saveFeedback ? '#000000' : '#e5e7eb'
+                      }}
+                      transition={{ duration: 0.2 }}
+                      className={`
+                        flex items-center justify-center gap-2 px-6 py-4 rounded-full font-medium transition-all active:scale-95 border border-gray-200
+                        hover:border-gray-400 hover:text-black
+                      `}
+                      title="Save to ODT SPACE Assets"
+                    >
+                      {saveFeedback ? (
+                        <>
+                          <Check size={20} />
+                          <span className="text-sm whitespace-nowrap">Saved!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Box size={20} className={isSavedInInventory ? "fill-black" : ""} />
+                          <span className="text-sm whitespace-nowrap">
+                            {isSavedInInventory ? "Saved" : "Save Asset"}
+                          </span>
+                        </>
+                      )}
+                    </motion.button>
+
+                    {/* Add to Cart Button */}
+                    <button 
+                      onClick={handleAddToCart}
+                      className="flex-1 bg-black text-white py-4 rounded-full font-medium tracking-wide hover:bg-gray-800 transition-transform active:scale-95 flex items-center justify-center gap-2 shadow-xl shadow-black/10"
+                    >
+                      <ShoppingBag size={18} />
+                      <span>Add to Cart &mdash; ${finalPrice.toLocaleString()}</span>
+                    </button>
+                  </div>
                 </div>
 
               </div>

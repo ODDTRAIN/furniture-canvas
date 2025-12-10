@@ -1,10 +1,9 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useLayoutEffect, useRef } from "react";
 import * as THREE from "three";
-import { Html, useTexture, useGLTF, Line, Edges } from "@react-three/drei"; // [추가] Edges import
+import { Html, useTexture, useGLTF, Line, Edges } from "@react-three/drei"; 
 import { DEPTH, WOOD_THICK, SIDE_THICK, DICE_SIZE, PIPE_RADIUS, FILLET, LEG_HEIGHT } from "./constants";
 import { styles } from "./styles";
 
-// --- 텍스처 경로 상수 ---
 const WALNUT_MAPS = {
   map: "/textures/walnut_DIFFUSE.jpg",
   normalMap: "/textures/walnut_NORMAL.jpg"
@@ -20,17 +19,25 @@ const CHROME_MAPS = {
   roughnessMap: "/textures/Poliigon_MetalSteelBrushed_7174_Roughness.jpg"
 };
 
-// --- Helper: Texture Loader ---
 const useConfiguredTexture = (mapsObject, repeatX = 1, repeatY = 1, rotate = false, seed = 0) => {
   const textures = useTexture(mapsObject);
-  
-  return useMemo(() => {
-    const configured = {};
+  const clonedTextures = useMemo(() => {
+    const cloned = {};
+    Object.keys(textures).forEach((key) => {
+      cloned[key] = textures[key].clone();
+      if (key === 'map') {
+        cloned[key].colorSpace = THREE.SRGBColorSpace;
+      }
+    });
+    return cloned;
+  }, [textures]);
+
+  useLayoutEffect(() => {
     const randomOffsetX = seed ? (seed * 12.34) % 1 : 0;
     const randomOffsetY = seed ? (seed * 56.78) % 1 : 0;
 
-    Object.keys(textures).forEach((key) => {
-      const tex = textures[key].clone();
+    Object.keys(clonedTextures).forEach((key) => {
+      const tex = clonedTextures[key];
       tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
       tex.repeat.set(repeatX, repeatY);
       tex.offset.set(randomOffsetX, randomOffsetY);
@@ -43,41 +50,29 @@ const useConfiguredTexture = (mapsObject, repeatX = 1, repeatY = 1, rotate = fal
         tex.rotation = 0; 
       }
       
-      if (key === 'map') {
-        tex.colorSpace = THREE.SRGBColorSpace;
-      }
-      
       tex.needsUpdate = true;
-      configured[key] = tex;
     });
-    return configured;
-  }, [textures, repeatX, repeatY, rotate, seed]);
+  }, [clonedTextures, repeatX, repeatY, rotate, seed]);
+
+  return clonedTextures;
 };
 
-// --- [TUNED] Emissive Settings (강도 UP) ---
 const getEmissiveSettings = (highlightState) => {
   if (highlightState === 'row') {
-    // [강조] Row 선택: 아주 밝은 빛 + ToneMapping 끔
     return { emissive: "#FFFFFF", emissiveIntensity: 1.5, toneMapped: false };
   } else if (highlightState === 'stack') {
-    // [은은] Stack 선택
     return { emissive: "#404040", emissiveIntensity: 0.5, toneMapped: false };
   }
   return { emissive: "black", emissiveIntensity: 0, toneMapped: true };
 };
 
-// --- [NEW] Highlight Edge Component ---
-// 선택된 상태일 때만 외곽선을 그려주는 헬퍼 컴포넌트
 const HighlightEdges = ({ state }) => {
   if (!state) return null;
-  // Row 선택 시 흰색, Stack 선택 시 회색
   const color = state === 'row' ? "white" : "#666666"; 
   const opacity = state === 'row' ? 1.0 : 0.5;
-  // threshold={15}: 15도 이상 꺾이는 모서리에만 선을 그림 (곡면의 지저분한 선 방지)
   return <Edges threshold={15} color={color} transparent opacity={opacity} renderOrder={1000} />;
 };
 
-// --- Materials ---
 export const WoodMaterialHorizontal = (props) => { 
   const t = useConfiguredTexture(WALNUT_MAPS, 3, 1, true, props.seed); 
   const em = getEmissiveSettings(props.isHighlighted);
@@ -112,7 +107,6 @@ export const ChromeMaterial = (props) => {
   return <meshStandardMaterial {...props} {...t} color="#ffffff" roughness={0.5} metalness={0.95} envMapIntensity={1.6} {...chromeEm} />; 
 };
 
-// --- Parts ---
 export const DiceModel = () => {
   const { nodes } = useGLTF("/models/dice25mm.glb");
   const mesh = Object.values(nodes).find((n) => n.isMesh);
@@ -121,7 +115,6 @@ export const DiceModel = () => {
 };
 useGLTF.preload("/models/dice25mm.glb");
 
-// --- FilletBoard: Flush Fit + Edge Highlighting ---
 const FilletBoard = ({ width, height, thickness, position, rotation, seed, isVertical, isHighlighted }) => {
   const bevelSize = 0.0006; 
   const veneerTotalThick = 0.001; 
@@ -174,7 +167,6 @@ const FilletBoard = ({ width, height, thickness, position, rotation, seed, isVer
           ? <BirchEdgeMaterialVertical attach="material" seed={seed} isHighlighted={isHighlighted} /> 
           : <BirchEdgeMaterialHorizontal attach="material" seed={seed} isHighlighted={isHighlighted} />
         }
-        {/* [NEW] 엣지 라인 추가 */}
         <HighlightEdges state={isHighlighted} />
       </mesh>
       <mesh position={[0, 0, zOffset + thickness - veneerTotalThick]} castShadow receiveShadow>
@@ -197,19 +189,16 @@ const FilletBoard = ({ width, height, thickness, position, rotation, seed, isVer
   );
 };
 
-// --- UnitLeg: With Highlight Edge ---
 export const UnitLeg = ({ position, isHighlighted }) => {
   return (
     <mesh position={position} castShadow receiveShadow>
       <cylinderGeometry args={[0.01, 0.01, LEG_HEIGHT, 32]} />
       <ChromeMaterial isHighlighted={isHighlighted} />
-      {/* 원기둥 엣지 추가 */}
       <HighlightEdges state={isHighlighted} />
     </mesh>
   );
 };
 
-// --- Components (Highlight Edges Propagated) ---
 export const WoodShelf = ({ width, position, seed, isHighlighted }) => ( <FilletBoard width={width} height={DEPTH} thickness={WOOD_THICK} position={position} rotation={[-Math.PI / 2, 0, 0]} seed={seed} isVertical={false} isHighlighted={isHighlighted} /> );
 export const VerticalWoodPanel = ({ height, position, seed, isHighlighted }) => ( <FilletBoard width={DEPTH} height={height} thickness={WOOD_THICK} position={position} rotation={[0, -Math.PI / 2, 0]} seed={seed} isVertical={true} isHighlighted={isHighlighted} /> );
 export const OuterSteelPanel = ({ height, position, isHighlighted }) => ( <mesh position={position} castShadow receiveShadow><boxGeometry args={[SIDE_THICK, height, DEPTH - 0.002]} /><ChromeMaterial isHighlighted={isHighlighted} /><HighlightEdges state={isHighlighted} /></mesh> );
@@ -218,9 +207,39 @@ export const AccessoryDoubleDoor = ({ width, height, isHighlighted }) => { const
 export const AccessoryFlipDoor = ({ width, height, isHighlighted }) => ( <group position={[0, 0, DEPTH/2]}><group rotation={[-0.15, 0, 0]}><FilletBoard width={width-0.004} height={height-0.004} thickness={WOOD_THICK} position={[0, 0, 0]} rotation={[0, 0, 0]} isVertical={true} isHighlighted={isHighlighted} /><mesh position={[0, -(height-0.004)/2+0.01, WOOD_THICK/2+0.005]} castShadow><boxGeometry args={[width-0.004, 0.02, 0.01]} /><ChromeMaterial isHighlighted={isHighlighted} /><HighlightEdges state={isHighlighted} /></mesh></group></group> );
 export const AccessorySpeaker = ({ width, height, isHighlighted }) => (<group position={[0, 0, DEPTH/2]}><mesh castShadow receiveShadow><boxGeometry args={[width+DICE_SIZE*3, height+DICE_SIZE, WOOD_THICK]} /><WoodMaterialVertical isHighlighted={isHighlighted} /><HighlightEdges state={isHighlighted} /></mesh><mesh position={[0, 0.05, WOOD_THICK/2]} rotation={[Math.PI/2, 0, 0]}><cylinderGeometry args={[0.07, 0.07, 0.01, 32]} /><meshStandardMaterial color="#222" /></mesh><mesh position={[0, -0.1, WOOD_THICK/2]} rotation={[Math.PI/2, 0, 0]}><cylinderGeometry args={[0.03, 0.03, 0.01, 32]} /><meshStandardMaterial color="#000" /></mesh></group>);
 export const AccessoryShelf = ({ width, position, isHighlighted }) => ( <FilletBoard width={width-0.002} height={DEPTH} thickness={0.015} position={position} rotation={[-Math.PI/2, 0, 0]} isVertical={false} isHighlighted={isHighlighted} /> );
-export const CabinetLight = ({ width, position }) => (<group position={position}><pointLight color="#ffb74d" intensity={12} distance={0.8} decay={2} position={[0, -0.02, 0]} /><mesh position={[0, 0.0025, 0]}><boxGeometry args={[width-0.04, 0.005, 0.01]} /><meshBasicMaterial color="#ffebb3" toneMapped={false} /></mesh></group>);
 
-// --- Dimensions ---
+// [FIX] Rail Cabinet Light (RectAreaLight)
+// 이제 height를 정상적으로 받으므로, hasShelf일 때 거리 계산이 작동합니다.
+export const CabinetLight = ({ width, position, hasShelf, height }) => {
+  // 1. 밝기는 항상 일정하게 (주변 조명과 어우러지게)
+  const fixedIntensity = 320; 
+
+  // 2. [조절 포인트] 선반이 있으면 빛이 도달하는 거리를 짧게 자름 (Cut-off)
+  // height * 0.55 = 층 높이의 55% 지점까지만 빛이 닿음 -> 선반 아래는 어두워짐
+  // * 더 어둡게(짧게) 하려면 0.45, 덜 어둡게(길게) 하려면 0.7 등으로 수정하세요.
+  const lightDistance = hasShelf ? height * 0.2 : 3.0; 
+
+  return (
+    <group position={position}>
+      <rectAreaLight
+        width={width - 0.04}
+        height={0.01}
+        color="#ffb74d"
+        intensity={fixedIntensity}
+        distance={lightDistance} // [핵심] 가변 거리 적용
+        position={[0, -0.005, 0]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        decay={2} // 자연스러운 빛 감쇠
+      />
+      {/* LED Bar Mesh (Visual) */}
+      <mesh position={[0, 0.0025, 0]}>
+        <boxGeometry args={[width - 0.04, 0.005, 0.01]} />
+        <meshBasicMaterial color="#ffebb3" toneMapped={false} />
+      </mesh>
+    </group>
+  );
+};
+
 export const Dimensions = ({ width, height, visible }) => {
   if (!visible) return null;
 
@@ -276,7 +295,6 @@ export const Dimensions = ({ width, height, visible }) => {
   );
 };
 
-// [FIX] Preload Textures
 useTexture.preload(WALNUT_MAPS);
 useTexture.preload(BIRCH_MAPS);
 useTexture.preload(CHROME_MAPS);

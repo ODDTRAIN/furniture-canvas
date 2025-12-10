@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { LayoutGrid, X } from 'lucide-react'
 import { useStore } from '../store/useStore'
@@ -6,14 +6,14 @@ import { useStore } from '../store/useStore'
 const CATEGORIES = ['All', 'Sofa', 'Chair', 'Table', 'Lamp', 'Storage']
 
 export default function CategoryControl() {
-  const { category, setCategory } = useStore()
-  const [isOpen, setIsOpen] = useState(false)
+  // [FIX] useState 대신 Store에서 상태를 가져옵니다. (인트로 애니메이션 연동)
+  const { category, setCategory, isCategoryOpen, setIsCategoryOpen } = useStore()
 
   return (
-    // [핵심] isOpen일 때 y값을 살짝(20px) 내려서 시각적 무게중심을 맞춤
+    // [핵심] isCategoryOpen일 때 y값을 살짝(20px) 내려서 시각적 무게중심을 맞춤
     <motion.div 
       initial={false}
-      animate={{ y: isOpen ? 20 : 0 }}
+      animate={{ y: isCategoryOpen ? 20 : 0 }}
       transition={{ type: "spring", stiffness: 300, damping: 30 }}
       className="fixed left-8 top-1/2 -translate-y-1/2 z-[60] flex flex-col items-start"
     >
@@ -21,7 +21,7 @@ export default function CategoryControl() {
       {/* 메뉴 리스트 (Absolute로 띄움) */}
       <div className="absolute left-0 bottom-full mb-4 w-40"> 
         <AnimatePresence>
-          {isOpen && (
+          {isCategoryOpen && (
             <motion.div
               initial={{ opacity: 0, y: 10, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -56,20 +56,20 @@ export default function CategoryControl() {
 
       {/* 메인 버튼 */}
       <motion.button
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => setIsCategoryOpen(!isCategoryOpen)}
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
         className={`
           w-12 h-12 rounded-full flex items-center justify-center 
           shadow-xl transition-all duration-300 border relative z-10
-          ${isOpen 
+          ${isCategoryOpen 
             ? 'bg-black text-white border-black' 
             : 'bg-white text-black border-gray-100 hover:border-gray-300'
           }
         `}
       >
         <AnimatePresence mode="wait">
-          {isOpen ? (
+          {isCategoryOpen ? (
             <motion.div
               key="close"
               initial={{ rotate: -90, opacity: 0 }}
